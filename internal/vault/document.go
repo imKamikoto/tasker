@@ -50,9 +50,24 @@ func ParseDocument(src []byte) (*Document, error) {
 // HasFrontmatter сообщает, был ли заголовок в исходном файле.
 func (d *Document) HasFrontmatter() bool { return d.hadMeta }
 
+// Modified сообщает, отличается ли документ от того, что был прочитан.
+func (d *Document) Modified() bool {
+	return d.Meta.dirty || d.Body != d.origBody
+}
+
+// markClean объявляет текущее состояние документа исходным. Зовётся после
+// записи на диск, чтобы повторное сохранение не переписывало файл заново.
+func (d *Document) markClean() {
+	d.raw = d.Bytes()
+	d.origBody = d.Body
+	d.hadMeta = len(d.Meta.Bytes()) > 0
+	d.Meta.raw = d.Meta.Bytes()
+	d.Meta.dirty = false
+}
+
 // Bytes собирает документ обратно в содержимое файла.
 func (d *Document) Bytes() []byte {
-	if !d.Meta.dirty && d.Body == d.origBody {
+	if !d.Modified() {
 		return slices.Clone(d.raw)
 	}
 
