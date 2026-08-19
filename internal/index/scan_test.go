@@ -302,28 +302,78 @@ func TestScanFillsRecordFields(t *testing.T) {
 	}
 }
 
-// Заметка снаружи без frontmatter: id — первичный ключ индекса, и взять его
-// неоткуда. Такая заметка попадает в отчёт, а не в индекс, и не роняет скан.
-// См. вопрос к SPEC §4.1 в отчёте: там сказано, что frontmatter достраивается
-// «при первом открытии», но не сказано, считается ли скан открытием.
-func TestScanReportsNotesWithoutID(t *testing.T) {
+// Заметка снаружи без frontmatter: скан дописывает недостающее прямо в файл и
+// индексирует её как обычную. SPEC §4.1 — «достраивается при первом открытии»,
+// и скан это открытие и есть.
+func TestScanBackfillsNotesWithoutID(t *testing.T) {
 	ix, v, root := testScan(t)
 	ctx := context.Background()
-	writeFile(t, root, "снаружи.md", "# Просто файл\n\nбез заголовка\n")
+	writeFile(t, root, "мои-мысли.md", "# Просто файл\n\nбез заголовка\n")
 	writeFile(t, root, "нормальная.md", note("Нормальная", "тело\n"))
 
 	res, err := ix.Scan(ctx, v)
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if res.Added != 1 {
-		t.Errorf("добавлено %d, ожидалась одна нормальная", res.Added)
+	if res.Added != 2 || len(res.Failed) != 0 {
+		t.Fatalf("результат = %+v, ожидалось две добавленных без сбоев", res)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(root, "мои-мысли.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(raw), "---\nid: ") {
+		t.Errorf("frontmatter не дописан в файл:\n%s", raw)
+	}
+	if !strings.HasSuffix(string(raw), "# Просто файл\n\nбез заголовка\n") {
+		t.Errorf("тело потеряно:\n%s", raw)
+	}
+
+	states, _ := ix.States(ctx)
+	st, ok := states["мои-мысли.md"]
+	if !ok {
+		t.Fatalf("заметки нет в индексе: %v", keys(states))
+	}
+	r, err := ix.Get(ctx, st.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Title != "мои-мысли" {
+		t.Errorf("title = %q, ожидалось имя файла", r.Title)
+	}
+
+	// И следующий скан не должен считать её изменившейся: stat обновлён.
+	res2, err := ix.Scan(ctx, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Unchanged != 2 || res2.Updated != 0 {
+		t.Errorf("повторный скан = %+v, ожидалось 2 неизменённых", res2)
+	}
+}
+
+// А вот негодный id, который кто-то уже проставил, трогать нельзя: неизвестно,
+// чем он был и кто на него ссылается.
+func TestScanReportsBadID(t *testing.T) {
+	ix, v, root := testScan(t)
+	ctx := context.Background()
+	writeFile(t, root, "чужая.md", "---\nid: не-ulid\ntitle: A\n---\nтело\n")
+
+	res, err := ix.Scan(ctx, v)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if res.Added != 0 {
+		t.Errorf("добавлено %d, ожидалось 0", res.Added)
 	}
 	if len(res.Failed) != 1 || !errors.Is(res.Failed[0].Err, ErrMissingID) {
 		t.Fatalf("сбои = %+v, ожидался один ErrMissingID", res.Failed)
 	}
-	if res.Failed[0].Path != "снаружи.md" {
-		t.Errorf("путь сбоя = %q", res.Failed[0].Path)
+
+	raw, _ := os.ReadFile(filepath.Join(root, "чужая.md"))
+	if !strings.Contains(string(raw), "id: не-ulid") {
+		t.Errorf("чужой id переписан:\n%s", raw)
 	}
 }
 

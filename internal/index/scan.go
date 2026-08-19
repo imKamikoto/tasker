@@ -13,8 +13,8 @@ import (
 
 // Причины, по которым заметка не попадает в индекс.
 var (
-	// ErrMissingID — у заметки нет корректного ULID. Он первичный ключ индекса
-	// и основа ссылок, взять его неоткуда.
+	// ErrMissingID — в заметке лежит id, который не является ULID. Пустой id
+	// скан дописывает сам, а этот трогать нельзя: неизвестно, чем он был.
 	ErrMissingID = errors.New("note has no valid id")
 	// ErrDuplicateID — тот же id встретился второй раз за скан. Обычно это
 	// копия файла заметки.
@@ -148,15 +148,24 @@ func (ix *Index) Scan(ctx context.Context, v *vault.Vault) (ScanResult, error) {
 }
 
 // readRecord читает заметку и готовит строку индекса.
+//
+// Файлу, попавшему в vault снаружи, по дороге дописывается frontmatter: скан и
+// есть то самое «первое открытие» из SPEC §4.1, а без id заметку нельзя ни
+// положить в индекс, ни сослаться на неё.
 func readRecord(v *vault.Vault, abs string) (Record, error) {
 	n, err := v.Load(abs)
 	if err != nil {
+		return Record{}, err
+	}
+	if _, err := v.Backfill(n); err != nil {
 		return Record{}, err
 	}
 	r, err := RecordFrom(n)
 	if err != nil {
 		return Record{}, err
 	}
+	// Backfill не трогает id, который уже есть, даже негодный: мы не знаем, чем
+	// он был и кто на него ссылается. Такую заметку остаётся только показать.
 	if !vault.ValidID(r.ID) {
 		return Record{}, ErrMissingID
 	}
