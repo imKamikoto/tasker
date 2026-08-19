@@ -1,0 +1,18 @@
+# Производное: индекс восстанавливается из файлов, его место не в истории
+.tasker/index.sqlite
+.tasker/index.sqlite-shm
+.tasker/index.sqlite-wal
+
+# Сборка
+/build/bin/
+/frontend/dist/
+/frontend/node_modules/
+
+# Пробы фазы 0 лежат в oak-go/ и тянут свой node_modules
+oak-go/phase0/*/frontend/node_modules/
+oak-go/phase0/*/frontend/dist/
+oak-go/phase0/*/bin/
+oak-go/phase0/*/.task/
+
+# macOS
+.DS_Store

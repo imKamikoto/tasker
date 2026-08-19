@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=My Product
+Comment=A cm6 application
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/cm6 %u
+Terminal=false
+Type=Application
+Icon=cm6
+Categories=Utility;
+StartupWMClass=cm6
+
+ 

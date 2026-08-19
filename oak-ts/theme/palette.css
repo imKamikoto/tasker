@@ -1,0 +1,97 @@
+/*
+ * Shared color tokens for the oakgreen-dark-ui theme (ui.css, syntax.css,
+ * preview.css). Only the custom tokens actually consumed by this theme are
+ * defined here — everything else (full neutral/accent ramps, spacing, etc.)
+ * already ships in @inkdropapp/css's own tokens.css.
+ */
+@layer theme {
+  :root {
+    /* Signature accent: light oak — a soft, warm wood brown (#c4a484) that
+       replaces the original theme's saturated gold. Hue sits at ~30deg with
+       moderate saturation so it reads as timber rather than amber. */
+    --hsl-oak: 30deg 35% 64%;
+    /* Darkest wood: subtle panel/segment fills that barely lift off the page */
+    --hsl-oak-100: 28deg 22% 17%;
+    /* Mid wood: active rows, tabs and sidebar selection */
+    --hsl-oak-200: 28deg 26% 31%;
+    /* Dark wood: resting/selected list-row backgrounds */
+    --hsl-oak-400: 29deg 28% 23%;
+    /* Light tan: links and other text that must sit above the accent */
+    --hsl-oak-600: 31deg 42% 74%;
+    /* Palest sand: the lightest step, for high-contrast highlights */
+    --hsl-oak-800: 34deg 38% 84%;
+
+    --color-oak: hsl(var(--hsl-oak));
+    --color-oak-100: hsl(var(--hsl-oak-100));
+    --color-oak-200: hsl(var(--hsl-oak-200));
+    --color-oak-400: hsl(var(--hsl-oak-400));
+    --color-oak-600: hsl(var(--hsl-oak-600));
+    --color-oak-800: hsl(var(--hsl-oak-800));
+
+    /* Backwards-compatible aliases: this accent used to be called "gold".
+       Kept so any stylesheet or user override still referencing the old names
+       keeps working — they now resolve to the oak values above. */
+    --hsl-gold: var(--hsl-oak);
+    --hsl-gold-100: var(--hsl-oak-100);
+    --hsl-gold-200: var(--hsl-oak-200);
+    --hsl-gold-400: var(--hsl-oak-400);
+    --hsl-gold-600: var(--hsl-oak-600);
+    --hsl-gold-800: var(--hsl-oak-800);
+    --color-gold: var(--color-oak);
+    --color-gold-100: var(--color-oak-100);
+    --color-gold-200: var(--color-oak-200);
+    --color-gold-400: var(--color-oak-400);
+    --color-gold-600: var(--color-oak-600);
+    --color-gold-800: var(--color-oak-800);
+
+    /* Secondary accent: green (matches the theme's name) */
+    --hsl-green: 152deg 50% 58%;
+    --color-green: hsl(var(--hsl-green));
+    /* Darker shades of the same hue, for positive-button hover/down states */
+    --hsl-green-hover: 152deg 50% 48%;
+    --color-green-hover: hsl(var(--hsl-green-hover));
+    --hsl-green-down: 152deg 45% 40%;
+    --color-green-down: hsl(var(--hsl-green-down));
+
+    /* Single-shade accent used for tag icons */
+    --hsl-blue: 212deg 56% 27%;
+    --color-blue: hsl(var(--hsl-blue));
+
+    /* Bright, legible yellow — kept clearly apart in hue from the green accent */
+    --hsl-yellow: 48deg 95% 60%;
+    --color-yellow: hsl(var(--hsl-yellow));
+
+    /* Neutral grayscale used for panels/inputs */
+    --hsl-grey: 0 0% 10%;
+
+    /* Foreground (text) family */
+    --hsl-fg: 0 0% 90%;
+    --hsl-fg-muted: 0 0% 85%;
+    /* Warm off-white used for borders and translucent text; pulled toward the
+       oak hue and desaturated so borders read as warm grey, not cream */
+    --hsl-base3: 34deg 40% 94%;
+
+    /* Background family — near-black with a hint of walnut, matching the oak accent */
+    --hsl-bg: 30deg 25% 6%;
+    --hsl-base05: 192deg 100% 5%;
+    --hsl-base04: 192deg 100% 8%;
+    --hsl-base03: 192deg 100% 11%;
+    --hsl-base02: 0 0% 20%;
+    --hsl-base01: 194deg 14% 40%;
+
+    --hsl-bg-highlight: var(--hsl-base03);
+    --hsl-bg-muted-highlight: var(--hsl-base04);
+    /* Slightly lighter than --hsl-bg, for surfaces that should stand off the page (tooltips, popups) */
+    --hsl-bg-elevated: 30deg 25% 10%;
+    --color-bg-elevated: hsl(var(--hsl-bg-elevated));
+    /* Darker than --hsl-bg, for defining edges on elevated surfaces */
+    --hsl-bg-shadow: 30deg 25% 3%;
+    --color-bg-shadow: hsl(var(--hsl-bg-shadow));
+
+    --color-base02: hsl(var(--hsl-base02));
+    --color-base05: hsl(var(--hsl-base05));
+    --color-bg: hsl(var(--hsl-bg));
+    --color-bg-highlight: hsl(var(--hsl-bg-highlight));
+    --color-bg-muted-highlight: hsl(var(--hsl-bg-muted-highlight));
+  }
+}
