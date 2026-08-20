@@ -21,8 +21,11 @@ func testAutocommit(t *testing.T) (*Autocommit, *Store, string, chan error) {
 		}
 	})
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	go a.Run(ctx)
+	done := make(chan struct{})
+	go func() { a.Run(ctx); close(done) }()
+	// Дожидаемся остановки, а не просто отменяем: Run коммитит на выходе, и
+	// без ожидания он пишет в каталог, который уже удаляет t.TempDir().
+	t.Cleanup(func() { cancel(); <-done })
 	return a, s, root, errs
 }
 
@@ -174,8 +177,9 @@ func TestAutocommitWindowDoesNotSlide(t *testing.T) {
 	s, root := testStore(t)
 	a := NewAutocommit(s, 150*time.Millisecond, func(error) {})
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	go a.Run(ctx)
+	runDone := make(chan struct{})
+	go func() { a.Run(ctx); close(runDone) }()
+	t.Cleanup(func() { cancel(); <-runDone })
 
 	stop := make(chan struct{})
 	done := make(chan struct{})
