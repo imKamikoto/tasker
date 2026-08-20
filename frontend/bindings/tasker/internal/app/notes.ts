@@ -80,8 +80,8 @@ export function Save(id: string, title: string, body: string): $CancellablePromi
  * Пустой запрос означает все заметки. hideCompleted убирает завершённое и
  * брошенное — так список ноутбука выглядит по умолчанию (SPEC §8.3).
  */
-export function Search(query: string, limit: number, hideCompleted: boolean): $CancellablePromise<notes$0.Note[] | null> {
-    return $Call.ByID(252173164, query, limit, hideCompleted);
+export function Search(query: string, limit: number, hideCompleted: boolean, sortField: string, reversed: boolean): $CancellablePromise<notes$0.Note[] | null> {
+    return $Call.ByID(252173164, query, limit, hideCompleted, sortField, reversed);
 }
 
 /**

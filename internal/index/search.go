@@ -23,12 +23,62 @@ const (
 	TrashOnly
 )
 
+// SortField — по какому полю сортировать список (SPEC §8.4).
+type SortField int
+
+const (
+	// SortUpdated — по дате изменения. Значение по умолчанию.
+	SortUpdated SortField = iota
+	SortCreated
+	SortTitle
+)
+
+// Sort — порядок выдачи.
+type Sort struct {
+	Field SortField
+	// Reversed переворачивает естественный порядок поля.
+	//
+	// Не «по возрастанию»: у дат естественное — свежее сверху, у заголовков —
+	// от А к Я, то есть одно и то же слово означало бы для них разные стороны.
+	Reversed bool
+}
+
+// column возвращает колонку и направление для ORDER BY.
+//
+// Заголовки сравниваются побайтово: NOCASE в SQLite сворачивает только
+// латиницу, и для кириллицы разницы между ним и обычным сравнением нет.
+func (s Sort) column() (string, string) {
+	natural := "DESC" // свежее сверху
+	if s.Field == SortTitle {
+		natural = "ASC" // от А к Я
+	}
+	if s.Reversed {
+		if natural == "DESC" {
+			natural = "ASC"
+		} else {
+			natural = "DESC"
+		}
+	}
+
+	switch s.Field {
+	case SortCreated:
+		return "n.created", natural
+	case SortTitle:
+		return "n.title", natural
+	default:
+		return "n.updated", natural
+	}
+}
+
 // SearchOptions — то, что не относится к самому запросу.
 type SearchOptions struct {
 	// Limit ограничивает выдачу. Ноль — без ограничения.
 	Limit int
 	// Trash решает судьбу удалённых заметок.
 	Trash Trash
+	// Sort задаёт порядок. Закреплённые всё равно идут сверху отдельной
+	// группой — это не сортировка, а группировка (SPEC §8.4).
+	Sort Sort
 
 	// HideCompleted убирает завершённое и брошенное. Так выглядит список
 	// ноутбука по умолчанию (SPEC §8.3).
@@ -65,9 +115,10 @@ func (ix *Index) Search(ctx context.Context, q Query, opts SearchOptions) ([]Rec
 	if len(where) > 0 {
 		sqlText += "\n\t\tWHERE " + strings.Join(where, "\n\t\t  AND ")
 	}
-	// Закреплённые сверху, дальше по дате изменения по убыванию. rowid в конце —
-	// чтобы порядок не плавал у заметок с одинаковой датой.
-	sqlText += "\n\t\tORDER BY n.pinned DESC, n.updated DESC, n.rowid DESC"
+	// Закреплённые сверху отдельной группой, дальше выбранный порядок. rowid в
+	// конце — чтобы порядок не плавал у заметок с одинаковым значением.
+	column, direction := opts.Sort.column()
+	sqlText += "\n\t\tORDER BY n.pinned DESC, " + column + " " + direction + ", n.rowid DESC"
 	if opts.Limit > 0 {
 		sqlText += "\n\t\tLIMIT ?"
 		args = append(args, opts.Limit)

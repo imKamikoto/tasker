@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import type { Note } from "../api";
+import type { SortField } from "../settings";
 import { visibleWindow } from "../virtual";
 
 /** Высота строки списка. Совпадает с --row-height в стилях. */
@@ -16,6 +17,16 @@ type Props = {
   error: string | null;
   onQuery: (query: string) => void;
   onSelect: (id: string) => void;
+  sortField: SortField;
+  sortReversed: boolean;
+  onSort: (field: SortField, reversed: boolean) => void;
+};
+
+/** Подписи сортировок. Порядок — как в SPEC §8.4. */
+const sortLabels: Record<SortField, string> = {
+  title: "заголовок",
+  created: "создано",
+  updated: "изменено",
 };
 
 /**
@@ -24,7 +35,17 @@ type Props = {
  * Рисуются только видимые строки: десять тысяч заметок должны скроллиться без
  * лагов (SPEC §8.4), а десять тысяч узлов DOM этого не дают.
  */
-export function NoteList({ notes, selected, query, error, onQuery, onSelect }: Props) {
+export function NoteList({
+  notes,
+  selected,
+  query,
+  error,
+  onQuery,
+  onSelect,
+  sortField,
+  sortReversed,
+  onSort,
+}: Props) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(0);
@@ -61,6 +82,22 @@ export function NoteList({ notes, selected, query, error, onQuery, onSelect }: P
         spellCheck={false}
         autoCorrect="off"
       />
+
+      <div className="sortbar">
+        {(Object.keys(sortLabels) as SortField[]).map((field) => (
+          <button
+            key={field}
+            className="sortbar__field"
+            aria-selected={field === sortField}
+            // Повторное нажатие по уже выбранному полю переворачивает порядок:
+            // отдельная кнопка направления заняла бы место ради одного щелчка.
+            onClick={() => onSort(field, field === sortField ? !sortReversed : false)}
+          >
+            {sortLabels[field]}
+            {field === sortField && <span className="sortbar__arrow">{sortReversed ? "↑" : "↓"}</span>}
+          </button>
+        ))}
+      </div>
 
       {error && <div className="error">{error}</div>}
       {!error && notes.length === 0 && <div className="empty">Ничего не найдено</div>}

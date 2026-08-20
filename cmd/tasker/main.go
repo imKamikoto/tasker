@@ -131,6 +131,7 @@ func newApplication(service *notes.Service) (*application.App, *application.Webv
 		Description: "Заметки и задачи",
 		Services: []application.Service{
 			application.NewService(app.NewNotes(service)),
+			application.NewService(app.NewSettings(filepath.Join(service.Vault().Root(), ".tasker"))),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(tasker.Assets),

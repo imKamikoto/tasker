@@ -14,6 +14,7 @@ import {
 import { Editor } from "./components/Editor";
 import { NoteList } from "./components/NoteList";
 import { Sidebar, type Filter } from "./components/Sidebar";
+import { defaultSettings } from "./settings";
 import { statusForKey } from "./statuses";
 import { Splitter } from "./components/Splitter";
 
@@ -21,8 +22,8 @@ import { Splitter } from "./components/Splitter";
 const pageSize = 200;
 
 export default function App() {
-  const [sidebarWidth, setSidebarWidth] = useState(216);
-  const [listWidth, setListWidth] = useState(320);
+  // Настройки интерфейса читаются один раз при запуске и с тех пор живут здесь.
+  const [settings, setSettings] = useState(defaultSettings);
 
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -58,6 +59,27 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    api
+      .loadSettings()
+      .then((loaded) => !cancelled && setSettings(loaded))
+      .catch((err) => !cancelled && setListError(describeError(err)));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Сохраняем с задержкой: ширины меняются на каждый пиксель перетаскивания,
+  // и писать файл на каждый из них незачем.
+  useEffect(() => {
+    if (settings === defaultSettings) return;
+    const timer = window.setTimeout(() => {
+      void api.saveSettings(settings).catch(() => undefined);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [settings]);
+
+  useEffect(() => {
+    let cancelled = false;
     Promise.all([api.notebooks(), api.tags()])
       .then(([books, tagList]) => {
         if (cancelled) return;
@@ -79,7 +101,7 @@ export default function App() {
         ? api.tasks(pageSize)
         : filter.kind === "trash"
           ? api.trashed(pageSize)
-          : api.search(search, pageSize, !query.includes("status:"));
+          : api.search(search, pageSize, !query.includes("status:"), settings);
 
     request
       .then((found) => {
@@ -91,7 +113,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [search, revision, filter.kind, query]);
+  }, [search, revision, filter.kind, query, settings]);
 
   useEffect(() => {
     if (!selected) {
@@ -244,10 +266,17 @@ export default function App() {
   return (
     <div
       className="layout"
-      style={{ gridTemplateColumns: `${sidebarWidth}px 1px ${listWidth}px 1px 1fr` }}
+      style={{
+        gridTemplateColumns: `${settings.sidebarWidth}px 1px ${settings.listWidth}px 1px 1fr`,
+      }}
     >
       <Sidebar notebooks={notebooks} tags={tags} filter={filter} onFilter={onFilter} />
-      <Splitter width={sidebarWidth} min={160} max={400} onChange={setSidebarWidth} />
+      <Splitter
+        width={settings.sidebarWidth}
+        min={160}
+        max={400}
+        onChange={(value) => setSettings((current) => ({ ...current, sidebarWidth: value }))}
+      />
       <NoteList
         notes={notes}
         selected={selected}
@@ -255,8 +284,18 @@ export default function App() {
         error={listError}
         onQuery={setQuery}
         onSelect={setSelected}
+        sortField={settings.sortField}
+        sortReversed={settings.sortReversed}
+        onSort={(sortField, sortReversed) =>
+          setSettings((current) => ({ ...current, sortField, sortReversed }))
+        }
       />
-      <Splitter width={listWidth} min={240} max={600} onChange={setListWidth} />
+      <Splitter
+        width={settings.listWidth}
+        min={240}
+        max={600}
+        onChange={(value) => setSettings((current) => ({ ...current, listWidth: value }))}
+      />
       {noteError && (
         <div className="pane pane--editor">
           <div className="error">{noteError}</div>

@@ -26,8 +26,29 @@ func NewNotes(service *notes.Service) *Notes {
 //
 // Пустой запрос означает все заметки. hideCompleted убирает завершённое и
 // брошенное — так список ноутбука выглядит по умолчанию (SPEC §8.3).
-func (n *Notes) Search(ctx context.Context, query string, limit int, hideCompleted bool) ([]notes.Note, error) {
-	return n.service.Search(ctx, query, notes.SearchOptions{Limit: limit, HideCompleted: hideCompleted})
+func (n *Notes) Search(
+	ctx context.Context, query string, limit int, hideCompleted bool, sortField string, reversed bool,
+) ([]notes.Note, error) {
+	return n.service.Search(ctx, query, notes.SearchOptions{
+		Limit:         limit,
+		HideCompleted: hideCompleted,
+		Sort:          index.Sort{Field: sortField_(sortField), Reversed: reversed},
+	})
+}
+
+// sortField_ переводит имя поля из интерфейса во внутреннее.
+//
+// Строкой, а не числом: числа в биндингах читаются как магия, а список полей
+// закрыт и меняется вместе со спекой (SPEC §8.4).
+func sortField_(name string) index.SortField {
+	switch name {
+	case "created":
+		return index.SortCreated
+	case "title":
+		return index.SortTitle
+	default:
+		return index.SortUpdated
+	}
 }
 
 // Tasks — что сейчас в работе: active и onHold из всех ноутбуков.

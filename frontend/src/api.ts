@@ -1,6 +1,8 @@
 import { Events } from "@wailsio/runtime";
 
-import { Closing, Notes } from "../bindings/tasker/internal/app";
+import { defaultSettings, parseSettings, type UISettings } from "./settings";
+
+import { Closing, Notes, Settings } from "../bindings/tasker/internal/app";
 import type { Record as NoteRecord, Notebook, Tag } from "../bindings/tasker/internal/index/models";
 import type { Note } from "../bindings/tasker/internal/notes/models";
 
@@ -16,8 +18,8 @@ export type { NoteRecord, Notebook, Tag, Note };
 export const api = {
   // Пустой срез в Go — это null в JSON, и биндинги честно объявляют его в типе.
   // Разворачиваем здесь, на границе, чтобы дальше по коду никто про это не помнил.
-  search: (query: string, limit: number, hideCompleted: boolean) =>
-    Notes.Search(query, limit, hideCompleted).then(nonNull),
+  search: (query: string, limit: number, hideCompleted: boolean, sort: UISettings) =>
+    Notes.Search(query, limit, hideCompleted, sort.sortField, sort.sortReversed).then(nonNull),
   tasks: (limit: number) => Notes.Tasks(limit).then(nonNull),
   trashed: (limit: number) => Notes.Trashed(limit).then(nonNull),
   restore: (id: string) => Notes.Restore(id),
@@ -33,6 +35,12 @@ export const api = {
   create: (title: string, notebook: string) => Notes.Create(title, notebook),
   /** Ответ Go: буфер записан, окно можно закрывать. */
   readyToClose: () => Closing.Ready(),
+
+  loadSettings: async (): Promise<UISettings> => {
+    const raw = await Settings.Load();
+    return raw ? parseSettings(raw) : { ...defaultSettings };
+  },
+  saveSettings: (value: UISettings) => Settings.Save(JSON.stringify(value)),
 };
 
 /** Имена событий из SPEC §6. Совпадают с константами в internal/app. */

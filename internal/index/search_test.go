@@ -2,6 +2,7 @@ package index
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -322,6 +323,69 @@ func TestSearchTrashOnly(t *testing.T) {
 	for _, r := range got {
 		if !r.Trashed {
 			t.Errorf("живая заметка на экране корзины: %q", r.Title)
+		}
+	}
+}
+
+// Сортировки из SPEC §8.4: заголовок, создано, изменено, обе стороны.
+func TestSearchSort(t *testing.T) {
+	ix, _ := testIndex(t)
+	ctx := context.Background()
+	base := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+
+	for i, title := range []string{"Вторая", "Первая", "Третья"} {
+		if err := ix.Put(ctx, Record{
+			ID:   "01K3QF8ZN7X2WPBV4YHMC6TD" + string(rune('A'+i)) + "1",
+			Path: title + ".md", Title: title, Status: "none", Body: "тело",
+			Created: base.Add(time.Duration(i) * time.Hour),
+			Updated: base.Add(time.Duration(2-i) * time.Hour),
+			ModTime: base, Size: 10,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cases := []struct {
+		name string
+		sort Sort
+		want []string
+	}{
+		{"по изменению, свежее сверху", Sort{Field: SortUpdated}, []string{"Вторая", "Первая", "Третья"}},
+		{"по изменению наоборот", Sort{Field: SortUpdated, Reversed: true}, []string{"Третья", "Первая", "Вторая"}},
+		{"по созданию, свежее сверху", Sort{Field: SortCreated}, []string{"Третья", "Первая", "Вторая"}},
+		{"по созданию наоборот", Sort{Field: SortCreated, Reversed: true}, []string{"Вторая", "Первая", "Третья"}},
+		{"по заголовку от А к Я", Sort{Field: SortTitle}, []string{"Вторая", "Первая", "Третья"}},
+		{"по заголовку наоборот", Sort{Field: SortTitle, Reversed: true}, []string{"Третья", "Первая", "Вторая"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			q, _ := ParseQuery("")
+			got, err := ix.Search(ctx, q, SearchOptions{Sort: c.sort})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(titles(got), ",") != strings.Join(c.want, ",") {
+				t.Errorf("порядок = %v, ожидался %v", titles(got), c.want)
+			}
+		})
+	}
+}
+
+// Закреплённые сверху при любой сортировке: это группировка, а не порядок.
+func TestSearchPinnedStayOnTop(t *testing.T) {
+	ix, _ := testIndex(t)
+	seed(t, ix)
+
+	for _, sort := range []Sort{
+		{Field: SortUpdated}, {Field: SortCreated, Reversed: true}, {Field: SortTitle},
+	} {
+		q, _ := ParseQuery("")
+		got, err := ix.Search(context.Background(), q, SearchOptions{Sort: sort})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) == 0 || !got[0].Pinned {
+			t.Errorf("при сортировке %+v первой идёт %v", sort, titles(got))
 		}
 	}
 }

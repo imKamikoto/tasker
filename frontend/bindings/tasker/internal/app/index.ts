@@ -3,7 +3,9 @@
 
 import * as Closing from "./closing.js";
 import * as Notes from "./notes.js";
+import * as Settings from "./settings.js";
 export {
     Closing,
-    Notes
+    Notes,
+    Settings
 };

@@ -6,6 +6,14 @@ import (
 	"path/filepath"
 )
 
+// WriteFileAtomic — та же атомарная запись для файлов рядом с заметками:
+// настроек интерфейса в .tasker/config.json. Экспортирована, потому что
+// требование «на диске никогда не половина файла» относится ко всему, что мы
+// пишем в vault, а не только к самим заметкам.
+func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
+	return writeFileAtomic(path, data, perm)
+}
+
 // writeFileAtomic пишет файл так, чтобы на диске он никогда не оказался
 // записанным наполовину: временный файл → fsync → rename.
 //

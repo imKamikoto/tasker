@@ -68,6 +68,38 @@ body {
   overflow: hidden;
 }
 
+/* Полоса сортировок: три поля, повторный щелчок переворачивает порядок. */
+.sortbar {
+  display: flex;
+  gap: 2px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sortbar__field {
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--color-fg-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: default;
+}
+
+.sortbar__field:hover {
+  background: var(--color-oak-100);
+}
+
+.sortbar__field[aria-selected="true"] {
+  background: var(--color-oak-200);
+  color: var(--color-oak-800);
+}
+
+.sortbar__arrow {
+  margin-left: 4px;
+}
+
 /* Прокручивается сам список, а не колонка: поле поиска остаётся на месте. */
 .notes {
   flex: 1;

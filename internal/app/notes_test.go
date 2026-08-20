@@ -35,7 +35,7 @@ func TestCreateSearchGet(t *testing.T) {
 		t.Fatalf("создано = %+v", created)
 	}
 
-	found, err := n.Search(ctx, "перерасч", 20, false)
+	found, err := n.Search(ctx, "перерасч", 20, false, "updated", false)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestTrashRemovesFromSearch(t *testing.T) {
 	if err := n.Trash(ctx, created.ID); err != nil {
 		t.Fatalf("Trash: %v", err)
 	}
-	found, err := n.Search(ctx, "", 20, false)
+	found, err := n.Search(ctx, "", 20, false, "updated", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,14 +180,14 @@ func TestTasksAndHideCompleted(t *testing.T) {
 		t.Errorf("в работе %d, ожидалось 2: %+v", len(tasks), tasks)
 	}
 
-	visible, err := n.Search(ctx, "book:Работа", 50, true)
+	visible, err := n.Search(ctx, "book:Работа", 50, true, "updated", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(visible) != 3 {
 		t.Errorf("видимых %d, ожидалось 3 (без завершённой и брошенной)", len(visible))
 	}
-	all, err := n.Search(ctx, "book:Работа", 50, false)
+	all, err := n.Search(ctx, "book:Работа", 50, false, "updated", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestTrashRestoreCycle(t *testing.T) {
 	if len(trashed) != 1 || trashed[0].ID != created.ID {
 		t.Fatalf("в корзине %+v", trashed)
 	}
-	if live, err := n.Search(ctx, "", 50, false); err != nil || len(live) != 0 {
+	if live, err := n.Search(ctx, "", 50, false, "updated", false); err != nil || len(live) != 0 {
 		t.Errorf("удалённая видна в обычном списке: %+v, %v", live, err)
 	}
 
