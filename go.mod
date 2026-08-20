@@ -5,6 +5,7 @@ go 1.25.0
 require github.com/goccy/go-yaml v1.19.2
 
 require (
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/oklog/ulid/v2 v2.1.2
 	modernc.org/sqlite v1.57.0
 )
