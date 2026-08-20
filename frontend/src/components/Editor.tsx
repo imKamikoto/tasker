@@ -1,35 +1,104 @@
-import type { Note } from "../api";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { api, describeError, type Note, type NoteRecord } from "../api";
+import { CodeMirror } from "./CodeMirror";
+
+/** Сколько ждать после последней правки перед записью (SPEC §, фаза 3). */
+const saveDelay = 400;
 
 type Props = {
-  note: Note | null;
-  error: string | null;
+  note: Note;
+  onSaved: (record: NoteRecord) => void;
+  onClose: () => void;
 };
 
+type SaveState = "clean" | "dirty" | "saving" | "failed";
+
 /**
- * Editor пока только показывает заметку.
+ * Editor — заголовок, тело и сохранение.
  *
- * Здесь будет CodeMirror 6 с вимом — следующий пункт фазы 3. Пока это место
- * занято текстом как есть, чтобы видеть, что данные доезжают целиком.
+ * Родитель монтирует его заново на каждую заметку (key по id), поэтому здесь
+ * не нужно ни подменять документ, ни сбрасывать состояние вима: этим
+ * занимается React.
  */
-export function Editor({ note, error }: Props) {
-  if (error) {
-    return (
-      <div className="pane pane--editor">
-        <div className="error">{error}</div>
-      </div>
-    );
-  }
-  if (!note) {
-    return (
-      <div className="pane pane--editor">
-        <div className="empty">Выберите заметку слева</div>
-      </div>
-    );
-  }
+export function Editor({ note, onSaved, onClose }: Props) {
+  const [title, setTitle] = useState(note.Title);
+  const [state, setState] = useState<SaveState>("clean");
+  const [error, setError] = useState<string | null>(null);
+
+  // Текущее содержимое держим в ref, а не в state: перерисовывать панель на
+  // каждое нажатие незачем, а сохранению нужны свежие значения — в том числе
+  // при размонтировании, куда состояние уже не доедет.
+  const latest = useRef({ title: note.Title, body: note.Body, dirty: false });
+  const timer = useRef<number | null>(null);
+
+  const save = useCallback(async () => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    if (!latest.current.dirty) return;
+
+    const { title: nextTitle, body } = latest.current;
+    latest.current.dirty = false;
+    setState("saving");
+    try {
+      const saved = await api.save(note.ID, nextTitle, body);
+      setState("clean");
+      setError(null);
+      onSaved(saved);
+    } catch (err) {
+      // Правку не теряем: она осталась в буфере, и следующая попытка её заберёт.
+      latest.current.dirty = true;
+      setState("failed");
+      setError(describeError(err));
+    }
+  }, [note.ID, onSaved]);
+
+  const schedule = useCallback(() => {
+    latest.current.dirty = true;
+    setState("dirty");
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = window.setTimeout(save, saveDelay);
+  }, [save]);
+
+  // Несохранённое при закрытии заметки обязано уехать на диск: переключение
+  // заметки — это размонтирование, и другого шанса не будет.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => {
+    return () => {
+      void saveRef.current();
+    };
+  }, []);
+
+  const onTitle = useCallback(
+    (value: string) => {
+      setTitle(value);
+      latest.current.title = value;
+      schedule();
+    },
+    [schedule],
+  );
+
+  const onBody = useCallback(
+    (value: string) => {
+      latest.current.body = value;
+      schedule();
+    },
+    [schedule],
+  );
 
   return (
     <div className="pane pane--editor">
-      <input className="editor__title" value={note.Title} readOnly />
+      <input
+        className="editor__title"
+        value={title}
+        onChange={(event) => onTitle(event.target.value)}
+        spellCheck={false}
+        autoCorrect="off"
+        placeholder="Без заголовка"
+      />
       <div className="editor__meta">
         <span>{note.Notebook || "Корень"}</span>
         {note.Status !== "none" && <span className="status">{note.Status}</span>}
@@ -39,8 +108,29 @@ export function Editor({ note, error }: Props) {
           </span>
         ))}
         {(note.Backlinks?.length ?? 0) > 0 && <span>ссылаются: {note.Backlinks?.length}</span>}
+        <span className="editor__state" data-state={state}>
+          {stateLabel(state)}
+        </span>
       </div>
-      <div className="editor__body">{note.Body}</div>
+
+      {error && <div className="error">{error}</div>}
+
+      <div className="editor__body">
+        <CodeMirror initialDoc={note.Body} onChange={onBody} onWrite={save} onQuit={onClose} />
+      </div>
     </div>
   );
+}
+
+function stateLabel(state: SaveState): string {
+  switch (state) {
+    case "saving":
+      return "сохраняю…";
+    case "dirty":
+      return "не сохранено";
+    case "failed":
+      return "ошибка записи";
+    default:
+      return "сохранено";
+  }
 }

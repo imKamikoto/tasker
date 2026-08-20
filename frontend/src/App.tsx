@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { api, describeError, type Note, type Notebook, type Tag } from "./api";
+import { api, describeError, type Note, type NoteRecord, type Notebook, type Tag } from "./api";
 import { Editor } from "./components/Editor";
 import { NoteList } from "./components/NoteList";
 import { Sidebar, type Filter } from "./components/Sidebar";
@@ -81,6 +81,30 @@ export default function App() {
     setSelected(null);
   }, []);
 
+  // После записи обновляем строку в списке на месте: перезапрашивать весь
+  // список на каждое сохранение — значит дёргать его под курсором.
+  const onSaved = useCallback((saved: NoteRecord) => {
+    setNotes((current) =>
+      current.map((item) =>
+        item.ID === saved.ID
+          ? {
+              // Поимённо, а не спредом: у Note и Record поле Links разного
+              // типа, и спред молча подменил бы одно другим.
+              ...item,
+              Title: saved.Title,
+              Excerpt: saved.Excerpt,
+              Updated: saved.Updated,
+              Status: saved.Status,
+              Pinned: saved.Pinned,
+              Tags: saved.Tags,
+              NumTasks: saved.NumTasks,
+              NumDone: saved.NumDone,
+            }
+          : item,
+      ),
+    );
+  }, []);
+
   return (
     <div
       className="layout"
@@ -97,7 +121,21 @@ export default function App() {
         onSelect={setSelected}
       />
       <Splitter width={listWidth} min={240} max={600} onChange={setListWidth} />
-      <Editor note={note} error={noteError} />
+      {noteError && (
+        <div className="pane pane--editor">
+          <div className="error">{noteError}</div>
+        </div>
+      )}
+      {!noteError && !note && (
+        <div className="pane pane--editor">
+          <div className="empty">Выберите заметку слева</div>
+        </div>
+      )}
+      {!noteError && note && (
+        // key по id: переключение заметки пересоздаёт редактор целиком, вместо
+        // того чтобы подменять документ и сбрасывать состояние вима руками.
+        <Editor key={note.ID} note={note} onSaved={onSaved} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }
