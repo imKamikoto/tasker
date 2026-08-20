@@ -46,6 +46,7 @@
 
 **Специально рано.** Зависит только от фазы 1, UI не нужен вообще. После этой фазы главный сценарий уже работает.
 
+- [x] `internal/notes` — слой операций, общий для приложения и MCP: файл, индекс и коммит обновляются вместе. Внутри межпроцессная блокировка на `flock`: приложение и `tasker-mcp` — разные процессы, и одновременный `git commit` упирается в `index.lock`
 - [ ] `cmd/tasker-mcp` на официальном `modelcontextprotocol/go-sdk`, stdio, флаг `--vault`
 - [ ] Инструменты: `search_notes`, `get_note`, `create_note`, `update_note`, `set_status`, `list_tasks`, `list_notebooks`, `list_tags`, `trash_note`
 - [ ] Указатели в параметрах обновления — отличать «не передано» от нуля

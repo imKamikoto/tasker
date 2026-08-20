@@ -75,7 +75,8 @@ internal/
   index/          SQLite, FTS5, парсер языка запросов
   watcher/        fsnotify + периодическая сверка
   gitstore/       автокоммит, лог, diff
-  app/            сервисы Wails: тонкие обёртки над internal/*
+  notes/          операции уровня заметки: файл, индекс и история вместе
+  app/            сервисы Wails: тонкие обёртки над internal/notes
 frontend/
   src/            React + CM6
   bindings/       СГЕНЕРИРОВАННЫЙ TypeScript, руками не трогать
@@ -84,7 +85,7 @@ docs/
 Taskfile.yml
 ```
 
-`internal/vault`, `internal/index`, `internal/watcher`, `internal/gitstore` **не импортируют Wails**. Проверяется линтером. Это позволяет и тестировать их обычным `go test`, и переиспользовать в `tasker-mcp` без изменений.
+`internal/vault`, `internal/index`, `internal/watcher`, `internal/gitstore`, `internal/notes` **не импортируют Wails**. Проверяется линтером. Это позволяет и тестировать их обычным `go test`, и переиспользовать в `tasker-mcp` без изменений. `internal/notes` появился по ходу фазы 2: «создать заметку» — это файл, строка индекса и коммит вместе, и та же связка нужна и приложению, и MCP-серверу. В `internal/app` её положить нельзя — там Wails, а MCP обязан оставаться бинарником без него.
 
 ---
 
