@@ -12,15 +12,22 @@ export type { NoteRecord, Notebook, Tag, Note };
  * она вся в internal/notes (CLAUDE.md, инвариант 3).
  */
 export const api = {
-  search: (query: string, limit: number) => Notes.Search(query, limit),
+  // Пустой срез в Go — это null в JSON, и биндинги честно объявляют его в типе.
+  // Разворачиваем здесь, на границе, чтобы дальше по коду никто про это не помнил.
+  search: (query: string, limit: number) => Notes.Search(query, limit).then(nonNull),
   get: (id: string) => Notes.Get(id),
-  notebooks: () => Notes.Notebooks(),
-  tags: () => Notes.Tags(),
+  notebooks: () => Notes.Notebooks().then(nonNull),
+  tags: () => Notes.Tags().then(nonNull),
   save: (id: string, title: string, body: string) => Notes.Save(id, title, body),
   setStatus: (id: string, status: string) => Notes.SetStatus(id, status),
   trash: (id: string) => Notes.Trash(id),
   create: (title: string, notebook: string) => Notes.Create(title, notebook),
 };
+
+/** nonNull заменяет пришедший из Go null пустым списком. */
+function nonNull<T>(value: T[] | null): T[] {
+  return value ?? [];
+}
 
 /**
  * describeError превращает что угодно в строку для показа человеку.

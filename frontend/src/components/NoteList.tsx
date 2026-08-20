@@ -45,7 +45,7 @@ export function NoteList({ notes, selected, query, error, onQuery, onSelect }: P
                 {note.NumDone}/{note.NumTasks}
               </span>
             )}
-            {note.Tags.map((tag) => (
+            {(note.Tags ?? []).map((tag) => (
               <span key={tag} className="tag">
                 #{tag}
               </span>

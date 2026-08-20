@@ -33,12 +33,12 @@ export function Editor({ note, error }: Props) {
       <div className="editor__meta">
         <span>{note.Notebook || "Корень"}</span>
         {note.Status !== "none" && <span className="status">{note.Status}</span>}
-        {note.Tags.map((tag) => (
+        {(note.Tags ?? []).map((tag) => (
           <span key={tag} className="tag">
             #{tag}
           </span>
         ))}
-        {note.Backlinks.length > 0 && <span>ссылаются: {note.Backlinks.length}</span>}
+        {(note.Backlinks?.length ?? 0) > 0 && <span>ссылаются: {note.Backlinks?.length}</span>}
       </div>
       <div className="editor__body">{note.Body}</div>
     </div>

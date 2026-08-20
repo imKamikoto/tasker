@@ -3,16 +3,12 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Create as $Create } from "@wailsio/runtime";
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: Unused imports
 import * as index$0 from "../index/models.js";
 
 /**
  * Note — заметка целиком: строка индекса, тело и связи.
  */
-export class Note {
+export interface Note {
     "ID": string;
 
     /**
@@ -31,93 +27,8 @@ export class Note {
     "NumDone": number;
     "Excerpt": string;
     "Trashed": boolean;
-    "Tags": string[];
+    "Tags": string[] | null;
     "Body": string;
-    "Links": index$0.Record[];
-    "Backlinks": index$0.Record[];
-
-    /** Creates a new Note instance. */
-    constructor($$source: Partial<Note> = {}) {
-        if (!("ID" in $$source)) {
-            this["ID"] = "";
-        }
-        if (!("Path" in $$source)) {
-            this["Path"] = "";
-        }
-        if (!("Notebook" in $$source)) {
-            this["Notebook"] = "";
-        }
-        if (!("Title" in $$source)) {
-            this["Title"] = "";
-        }
-        if (!("Status" in $$source)) {
-            this["Status"] = "";
-        }
-        if (!("Pinned" in $$source)) {
-            this["Pinned"] = false;
-        }
-        if (!("Created" in $$source)) {
-            this["Created"] = "0001-01-01T00:00:00.000Z";
-        }
-        if (!("Updated" in $$source)) {
-            this["Updated"] = "0001-01-01T00:00:00.000Z";
-        }
-        if (!("ModTime" in $$source)) {
-            this["ModTime"] = "0001-01-01T00:00:00.000Z";
-        }
-        if (!("Size" in $$source)) {
-            this["Size"] = 0;
-        }
-        if (!("NumTasks" in $$source)) {
-            this["NumTasks"] = 0;
-        }
-        if (!("NumDone" in $$source)) {
-            this["NumDone"] = 0;
-        }
-        if (!("Excerpt" in $$source)) {
-            this["Excerpt"] = "";
-        }
-        if (!("Trashed" in $$source)) {
-            this["Trashed"] = false;
-        }
-        if (!("Tags" in $$source)) {
-            this["Tags"] = [];
-        }
-        if (!("Body" in $$source)) {
-            this["Body"] = "";
-        }
-        if (!("Links" in $$source)) {
-            this["Links"] = [];
-        }
-        if (!("Backlinks" in $$source)) {
-            this["Backlinks"] = [];
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new Note instance from a string or object.
-     */
-    static createFrom($$source: any = {}): Note {
-        const $$createField14_0 = $$createType0;
-        const $$createField16_0 = $$createType2;
-        const $$createField17_0 = $$createType2;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("Tags" in $$parsedSource) {
-            $$parsedSource["Tags"] = $$createField14_0($$parsedSource["Tags"]);
-        }
-        if ("Links" in $$parsedSource) {
-            $$parsedSource["Links"] = $$createField16_0($$parsedSource["Links"]);
-        }
-        if ("Backlinks" in $$parsedSource) {
-            $$parsedSource["Backlinks"] = $$createField17_0($$parsedSource["Backlinks"]);
-        }
-        return new Note($$parsedSource as Partial<Note>);
-    }
+    "Links": index$0.Record[] | null;
+    "Backlinks": index$0.Record[] | null;
 }
-
-// Private type creation functions
-const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = index$0.Record.createFrom;
-const $$createType2 = $Create.Array($$createType1);
