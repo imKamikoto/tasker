@@ -9,6 +9,9 @@ const saveDelay = 400;
 type Props = {
   note: Note;
   onSaved: (record: NoteRecord) => void;
+  /** Сообщает наружу, есть ли несохранённое: от этого зависит, можно ли
+   *  перечитать заметку, изменившуюся на диске. */
+  onDirty: (dirty: boolean) => void;
   onClose: () => void;
 };
 
@@ -21,7 +24,7 @@ type SaveState = "clean" | "dirty" | "saving" | "failed";
  * не нужно ни подменять документ, ни сбрасывать состояние вима: этим
  * занимается React.
  */
-export function Editor({ note, onSaved, onClose }: Props) {
+export function Editor({ note, onSaved, onDirty, onClose }: Props) {
   const [title, setTitle] = useState(note.Title);
   const [state, setState] = useState<SaveState>("clean");
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +44,7 @@ export function Editor({ note, onSaved, onClose }: Props) {
 
     const { title: nextTitle, body } = latest.current;
     latest.current.dirty = false;
+    onDirty(false);
     setState("saving");
     try {
       const saved = await api.save(note.ID, nextTitle, body);
@@ -50,17 +54,19 @@ export function Editor({ note, onSaved, onClose }: Props) {
     } catch (err) {
       // Правку не теряем: она осталась в буфере, и следующая попытка её заберёт.
       latest.current.dirty = true;
+      onDirty(true);
       setState("failed");
       setError(describeError(err));
     }
-  }, [note.ID, onSaved]);
+  }, [note.ID, onSaved, onDirty]);
 
   const schedule = useCallback(() => {
     latest.current.dirty = true;
+    onDirty(true);
     setState("dirty");
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = window.setTimeout(save, saveDelay);
-  }, [save]);
+  }, [save, onDirty]);
 
   // Несохранённое при закрытии заметки обязано уехать на диск: переключение
   // заметки — это размонтирование, и другого шанса не будет.

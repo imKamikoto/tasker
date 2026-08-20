@@ -529,3 +529,102 @@ func TestCreateEndsBodyWithNewline(t *testing.T) {
 		})
 	}
 }
+
+// Каждая наша запись обязана быть объявлена: на этом стоит реестр «своих»
+// записей у watcher'а, а без него редактор перечитывает собственный буфер.
+func TestOnWriteReportsEveryWrite(t *testing.T) {
+	v, _ := testVault(t)
+
+	type record struct {
+		path string
+		mod  time.Time
+	}
+	var seen []record
+	v.OnWrite(func(path string, mod time.Time) {
+		seen = append(seen, record{path, mod})
+	})
+
+	// Создание.
+	n, err := v.Create(NewNote{Title: "Заметка", Body: "тело\n", Notebook: "Работа"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 1 || seen[0].path != n.Path {
+		t.Fatalf("после Create: %+v", seen)
+	}
+
+	// Сохранение.
+	if err := n.Doc.Meta.SetTitle("Новый"); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Save(n); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 2 || seen[1].path != n.Path {
+		t.Fatalf("после Save: %+v", seen)
+	}
+
+	// Перемещение сообщает про оба пути: и откуда, и куда.
+	before := n.Path
+	if err := v.Move(n, "Личное"); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 4 || seen[2].path != before || seen[3].path != n.Path {
+		t.Fatalf("после Move: %+v", seen)
+	}
+
+	// И время должно быть настоящим временем файла, иначе сверка по mtime врёт.
+	info, err := os.Stat(n.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !seen[3].mod.Equal(info.ModTime()) {
+		t.Errorf("mtime = %v, на диске %v", seen[3].mod, info.ModTime())
+	}
+}
+
+// Неизменённая заметка не пишется — значит и объявлять нечего.
+func TestOnWriteSilentWhenNothingChanged(t *testing.T) {
+	v, _ := testVault(t)
+	n, err := v.Create(NewNote{Title: "Заметка"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var count int
+	v.OnWrite(func(string, time.Time) { count++ })
+	if err := v.Save(n); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("объявлено %d записей, а записи не было", count)
+	}
+}
+
+// Только что созданная заметка изменённой не считается: иначе первое же
+// сохранение переписало бы файл впустую и сдвинуло updated.
+func TestCreateLeavesDocumentClean(t *testing.T) {
+	v, _ := testVault(t)
+	n, err := v.Create(NewNote{Title: "Заметка", Body: "тело\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Doc.Modified() {
+		t.Error("свежесозданный документ помечен изменённым")
+	}
+
+	before, err := os.Stat(n.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Save(n); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(n.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Error("Save сразу после Create переписал файл")
+	}
+}

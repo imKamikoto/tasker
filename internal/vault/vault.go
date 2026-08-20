@@ -34,6 +34,26 @@ type Vault struct {
 	// now вынесено в поле, чтобы тесты могли зафиксировать время: updated
 	// проставляется здесь, и проверить его иначе нечем.
 	now func() time.Time
+
+	// onWrite сообщает о каждой нашей записи файла. Нужен watcher'у: событие
+	// по файлу, который записали мы сами, наружу выходить не должно, иначе
+	// редактор примется перечитывать собственный буфер (SPEC §5.3).
+	onWrite func(path string, modTime time.Time)
+}
+
+// OnWrite подписывает наблюдателя на собственные записи vault.
+//
+// Один, а не список: подписчик здесь ровно один — watcher, и городить рассылку
+// ради него значит выдумывать себе задачу.
+func (v *Vault) OnWrite(fn func(path string, modTime time.Time)) {
+	v.onWrite = fn
+}
+
+// wrote сообщает о записи, если есть кому.
+func (v *Vault) wrote(path string, modTime time.Time) {
+	if v.onWrite != nil {
+		v.onWrite(path, modTime)
+	}
 }
 
 // Note — заметка вместе с её местом в vault.
@@ -153,6 +173,7 @@ func (v *Vault) Save(n *Note) error {
 	}
 	n.ModTime = info.ModTime()
 	n.Size = info.Size()
+	v.wrote(n.Path, n.ModTime)
 	return nil
 }
 
@@ -192,6 +213,12 @@ func (v *Vault) Create(n NewNote) (*Note, error) {
 		return nil, fmt.Errorf("stat note %s: %w", path, err)
 	}
 
+	// Только что записанное на диск — это и есть исходное состояние документа.
+	// Без этого первый же Save после Create переписал бы файл заново и сдвинул
+	// updated, хотя ничего не менялось.
+	doc.markClean()
+
+	v.wrote(path, info.ModTime())
 	return &Note{
 		Doc:      doc,
 		Path:     path,

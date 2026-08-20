@@ -36,9 +36,13 @@ func (v *Vault) Move(n *Note, notebook string) error {
 		return fmt.Errorf("move %s to %q: %w", n.Path, notebook, err)
 	}
 
+	// Про оба пути: и откуда файл исчез, и куда появился — событие придёт по
+	// каждому из них.
+	v.wrote(n.Path, n.ModTime)
 	n.Path = moved
 	n.Notebook = v.notebookOf(moved)
 	n.ModTime = info.ModTime()
 	n.Size = info.Size()
+	v.wrote(n.Path, n.ModTime)
 	return nil
 }

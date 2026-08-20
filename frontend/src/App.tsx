@@ -1,6 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, describeError, type Note, type NoteRecord, type Notebook, type Tag } from "./api";
+import {
+  api,
+  describeError,
+  events,
+  subscribe,
+  type Note,
+  type NoteChanged,
+  type NoteRecord,
+  type Notebook,
+  type Tag,
+} from "./api";
 import { Editor } from "./components/Editor";
 import { NoteList } from "./components/NoteList";
 import { Sidebar, type Filter } from "./components/Sidebar";
@@ -24,6 +34,14 @@ export default function App() {
   const [listError, setListError] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
 
+  // revision растёт на каждое изменение снаружи и перезапускает запросы.
+  // Отдельное число, а не флаг: два изменения подряд должны дать два обновления.
+  const [revision, setRevision] = useState(0);
+
+  // Есть ли в редакторе несохранённое. Держим в ref: значение нужно
+  // обработчику события, а не разметке.
+  const dirty = useRef(false);
+
   // Запрос собирается здесь, а не в Go, только потому что это склейка строки из
   // того, что человек уже выбрал. Разбирает и исполняет его всё равно Go.
   const search = buildQuery(filter, query);
@@ -40,7 +58,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [revision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +73,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [search]);
+  }, [search, revision]);
 
   useEffect(() => {
     if (!selected) {
@@ -74,6 +92,21 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, [selected, revision]);
+
+  // Заметка, заведённая агентом через tasker-mcp, должна появиться в списке
+  // сама — ради этого шага сценария приёмки (MCP.md §6) всё и затевалось.
+  useEffect(() => {
+    const off = [
+      subscribe(events.notesChanged, () => setRevision((n) => n + 1)),
+      subscribe<NoteChanged>(events.noteChanged, (changed) => {
+        // Открытую заметку перечитываем, только если в ней нет несохранённого:
+        // иначе правка пользователя молча заменилась бы содержимым с диска.
+        // Случай с несохранённым — это плашка «файл изменён снаружи», её ещё нет.
+        if (changed.id === selected && !dirty.current) setRevision((n) => n + 1);
+      }),
+    ];
+    return () => off.forEach((unsubscribe) => unsubscribe());
   }, [selected]);
 
   const onFilter = useCallback((next: Filter) => {
@@ -134,7 +167,13 @@ export default function App() {
       {!noteError && note && (
         // key по id: переключение заметки пересоздаёт редактор целиком, вместо
         // того чтобы подменять документ и сбрасывать состояние вима руками.
-        <Editor key={note.ID} note={note} onSaved={onSaved} onClose={() => setSelected(null)} />
+        <Editor
+          key={`${note.ID}:${revision}`}
+          note={note}
+          onSaved={onSaved}
+          onDirty={(value) => (dirty.current = value)}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );

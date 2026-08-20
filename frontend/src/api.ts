@@ -1,3 +1,5 @@
+import { Events } from "@wailsio/runtime";
+
 import { Notes } from "../bindings/tasker/internal/app";
 import type { Record as NoteRecord, Notebook, Tag } from "../bindings/tasker/internal/index/models";
 import type { Note } from "../bindings/tasker/internal/notes/models";
@@ -23,6 +25,28 @@ export const api = {
   trash: (id: string) => Notes.Trash(id),
   create: (title: string, notebook: string) => Notes.Create(title, notebook),
 };
+
+/** Имена событий из SPEC §6. Совпадают с константами в internal/app. */
+export const events = {
+  notesChanged: "tasker:notes-changed",
+  noteChanged: "tasker:note-changed",
+} as const;
+
+/** Заметка изменилась на диске. */
+export type NoteChanged = { id: string; path: string };
+
+/**
+ * subscribe подписывается на событие из Go и возвращает функцию отписки.
+ *
+ * Обёртка нужна ради одного: Wails отдаёт полезную нагрузку внутри объекта
+ * события, и разворачивать её в каждом обработчике — лишний повод ошибиться.
+ */
+export function subscribe<T>(name: string, handler: (data: T) => void): () => void {
+  return Events.On(name, (event: { data: unknown }) => {
+    const payload = Array.isArray(event.data) ? event.data[0] : event.data;
+    handler(payload as T);
+  });
+}
 
 /** nonNull заменяет пришедший из Go null пустым списком. */
 function nonNull<T>(value: T[] | null): T[] {

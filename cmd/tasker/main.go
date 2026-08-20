@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -15,6 +16,7 @@ import (
 	"tasker/internal/app"
 	"tasker/internal/notes"
 	"tasker/internal/vault"
+	"tasker/internal/watcher"
 )
 
 // defaultVault — папка с заметками по умолчанию (SPEC §4.1).
@@ -39,7 +41,9 @@ func run(args []string) error {
 		return err
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	service, err := notes.Open(ctx, path, notes.Options{Origin: vault.OriginUser})
 	if err != nil {
 		return err
@@ -52,7 +56,34 @@ func run(args []string) error {
 		return err
 	}
 
-	return newApplication(service).Run()
+	files, err := watcher.Start(ctx, service.Vault().Root(), watcher.Options{OnError: logError})
+	if err != nil {
+		return err
+	}
+	// Событие по файлу, который записали мы сами, наружу не выходит — иначе
+	// редактор примется перечитывать собственный буфер (SPEC §5.3).
+	service.Vault().OnWrite(files.Ignore)
+
+	instance := newApplication(service)
+	go app.NewWatch(service, emitter(instance), logError).Run(ctx, files.Events())
+
+	return instance.Run()
+}
+
+// emitter отдаёт функцию рассылки событий в окно.
+func emitter(instance *application.App) func(name string, data any) {
+	return func(name string, data any) {
+		instance.Event.Emit(name, data)
+	}
+}
+
+// logError пишет в stderr.
+//
+// При запуске из Finder stderr уходит в никуда — это известное ограничение
+// десктопного приложения (docs/DESKTOP.md §7). Пока сообщений мало, отдельного
+// журнала не заводим.
+func logError(err error) {
+	log.Printf("tasker: %v", err)
 }
 
 func newApplication(service *notes.Service) *application.App {

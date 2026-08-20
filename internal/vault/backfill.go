@@ -83,6 +83,7 @@ func (v *Vault) Backfill(n *Note) (bool, error) {
 	}
 	n.ModTime = info.ModTime()
 	n.Size = info.Size()
+	v.wrote(n.Path, n.ModTime)
 	return true, nil
 }
 

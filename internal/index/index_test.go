@@ -387,3 +387,24 @@ func TestEmptyTagsAndLinks(t *testing.T) {
 }
 
 var _ = sql.ErrNoRows
+
+func TestGetByPath(t *testing.T) {
+	ix, _ := testIndex(t)
+	ctx := context.Background()
+	want := sampleRecord()
+	if err := ix.Put(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ix.GetByPath(ctx, want.Path)
+	if err != nil {
+		t.Fatalf("GetByPath: %v", err)
+	}
+	if got.ID != want.ID || got.Title != want.Title {
+		t.Errorf("получено %+v", got)
+	}
+
+	if _, err := ix.GetByPath(ctx, "нет/такой.md"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("ошибка = %v, ожидалась ErrNotFound", err)
+	}
+}

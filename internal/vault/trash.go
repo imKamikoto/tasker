@@ -58,10 +58,14 @@ func (v *Vault) Trash(n *Note) error {
 		return fmt.Errorf("trash %s: %w", n.Path, err)
 	}
 
+	// Про оба пути: и откуда файл исчез, и куда появился — событие придёт по
+	// каждому из них.
+	v.wrote(n.Path, n.ModTime)
 	n.Path = moved
 	n.Notebook = v.notebookOf(moved)
 	n.ModTime = info.ModTime()
 	n.Size = info.Size()
+	v.wrote(n.Path, n.ModTime)
 	return nil
 }
 

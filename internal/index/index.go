@@ -299,3 +299,18 @@ func (ix *Index) Count(ctx context.Context) (int, error) {
 	}
 	return n, nil
 }
+
+// GetByPath читает заметку по пути относительно корня vault.
+//
+// Нужен событиям: watcher знает пути, а интерфейсу нужны идентификаторы.
+func (ix *Index) GetByPath(ctx context.Context, path string) (Record, error) {
+	var id string
+	err := ix.db.QueryRowContext(ctx, `SELECT id FROM notes WHERE path = ?`, path).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Record{}, fmt.Errorf("get note by path %s: %w", path, ErrNotFound)
+	}
+	if err != nil {
+		return Record{}, fmt.Errorf("get note by path %s: %w", path, err)
+	}
+	return ix.Get(ctx, id)
+}
