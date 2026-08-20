@@ -16,3 +16,9 @@ oak-go/phase0/*/.task/
 
 # macOS
 .DS_Store
+
+# Фронтенд: dist собирается, node_modules ставится
+/frontend/dist/*
+!/frontend/dist/.gitkeep
+/frontend/node_modules/
+/bin/
