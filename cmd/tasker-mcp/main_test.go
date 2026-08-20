@@ -357,3 +357,41 @@ func TestClampLimit(t *testing.T) {
 		}
 	}
 }
+
+// Описания параметров — это часть промпта, который видит модель: без них она
+// гадает, что положить в поле. Тест держит их на месте при любых правках.
+func TestEveryParameterIsDescribed(t *testing.T) {
+	cs, _ := session(t)
+
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		raw, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema struct {
+			Properties map[string]struct {
+				Description string `json:"description"`
+				Properties  map[string]struct {
+					Description string `json:"description"`
+				} `json:"properties"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(raw, &schema); err != nil {
+			t.Fatalf("%s: %v", tool.Name, err)
+		}
+		for name, prop := range schema.Properties {
+			if prop.Description == "" {
+				t.Errorf("%s.%s без описания", tool.Name, name)
+			}
+			for sub, subProp := range prop.Properties {
+				if subProp.Description == "" {
+					t.Errorf("%s.%s.%s без описания", tool.Name, name, sub)
+				}
+			}
+		}
+	}
+}

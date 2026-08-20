@@ -195,20 +195,20 @@ func getNote(ctx context.Context, svc *notes.Service, p GetParams) (GetResult, e
 
 type CreateParams struct {
 	Title    string   `json:"title" jsonschema:"заголовок, конкретный и самодостаточный"`
-	Body     string   `json:"body,omitempty"`
+	Body     string   `json:"body,omitempty" jsonschema:"тело в markdown: что не так, где, как воспроизвести, почему не чиним сейчас"`
 	Notebook string   `json:"notebook,omitempty" jsonschema:"например Работа/Баги, создаётся если нет"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"несуществующие создаются"`
 	Status   string   `json:"status,omitempty" jsonschema:"none, active, onHold, completed или dropped"`
-	Pinned   bool     `json:"pinned,omitempty"`
+	Pinned   bool     `json:"pinned,omitempty" jsonschema:"закрепить наверху списка"`
 	LinkTo   string   `json:"linkTo,omitempty" jsonschema:"id заметки: добавит взаимные ссылки"`
 	Context  *Context `json:"context,omitempty" jsonschema:"откуда пришла заметка"`
 }
 
 type Context struct {
-	Repo   string `json:"repo,omitempty"`
-	Branch string `json:"branch,omitempty"`
-	Commit string `json:"commit,omitempty"`
-	File   string `json:"file,omitempty"`
+	Repo   string `json:"repo,omitempty" jsonschema:"имя репозитория, над которым шла работа"`
+	Branch string `json:"branch,omitempty" jsonschema:"текущая ветка"`
+	Commit string `json:"commit,omitempty" jsonschema:"текущий коммит, короткий хеш"`
+	File   string `json:"file,omitempty" jsonschema:"файл, в котором нашлась проблема"`
 }
 
 type CreateResult struct {
@@ -244,15 +244,15 @@ func createNote(ctx context.Context, svc *notes.Service, p CreateParams) (Create
 // UpdateParams — указатели, а не значения: иначе не отличить «не передано» от
 // «передан ноль», и обновление сбрасывало бы всё, о чём не упомянули.
 type UpdateParams struct {
-	ID         string   `json:"id"`
-	Title      *string  `json:"title,omitempty"`
+	ID         string   `json:"id" jsonschema:"ULID заметки"`
+	Title      *string  `json:"title,omitempty" jsonschema:"новый заголовок"`
 	Body       *string  `json:"body,omitempty" jsonschema:"заменяет тело целиком, взаимоисключающе с append и prepend"`
 	Append     *string  `json:"append,omitempty" jsonschema:"дописать в конец отдельным абзацем"`
 	Prepend    *string  `json:"prepend,omitempty" jsonschema:"дописать в начало отдельным абзацем"`
-	Status     *string  `json:"status,omitempty"`
-	AddTags    []string `json:"addTags,omitempty"`
-	RemoveTags []string `json:"removeTags,omitempty"`
-	Pinned     *bool    `json:"pinned,omitempty"`
+	Status     *string  `json:"status,omitempty" jsonschema:"none, active, onHold, completed или dropped"`
+	AddTags    []string `json:"addTags,omitempty" jsonschema:"добавить теги, существующие не дублируются"`
+	RemoveTags []string `json:"removeTags,omitempty" jsonschema:"убрать теги"`
+	Pinned     *bool    `json:"pinned,omitempty" jsonschema:"закрепить или открепить"`
 	Notebook   *string  `json:"notebook,omitempty" jsonschema:"перемещает заметку"`
 }
 
@@ -277,7 +277,7 @@ func updateNote(ctx context.Context, svc *notes.Service, p UpdateParams) (NoteSu
 }
 
 type StatusParams struct {
-	ID     string `json:"id"`
+	ID     string `json:"id" jsonschema:"ULID заметки"`
 	Status string `json:"status" jsonschema:"none, active, onHold, completed или dropped"`
 }
 
@@ -295,9 +295,9 @@ func setStatus(ctx context.Context, svc *notes.Service, p StatusParams) (NoteSum
 
 type TasksParams struct {
 	Status   []string `json:"status,omitempty" jsonschema:"по умолчанию active и onHold"`
-	Notebook string   `json:"notebook,omitempty"`
-	Tag      string   `json:"tag,omitempty"`
-	Limit    int      `json:"limit,omitempty"`
+	Notebook string   `json:"notebook,omitempty" jsonschema:"только из этого ноутбука, с вложенными"`
+	Tag      string   `json:"tag,omitempty" jsonschema:"только с этим тегом"`
+	Limit    int      `json:"limit,omitempty" jsonschema:"по умолчанию 20, максимум 100"`
 }
 
 func listTasks(ctx context.Context, svc *notes.Service, p TasksParams) (SearchResult, error) {
@@ -370,7 +370,7 @@ func listTags(ctx context.Context, svc *notes.Service, _ Empty) (TagsResult, err
 }
 
 type TrashParams struct {
-	ID string `json:"id"`
+	ID string `json:"id" jsonschema:"ULID заметки"`
 }
 
 type TrashResult struct {
