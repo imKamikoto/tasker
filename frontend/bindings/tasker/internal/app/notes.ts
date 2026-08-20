@@ -37,6 +37,13 @@ export function Delete(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * Duplicate создаёт копию заметки рядом с оригиналом.
+ */
+export function Duplicate(id: string): $CancellablePromise<index$0.Record> {
+    return $Call.ByID(2338619345, id);
+}
+
+/**
  * Get читает заметку целиком: тело, исходящие ссылки и бэклинки.
  */
 export function Get(id: string): $CancellablePromise<notes$0.Note> {
@@ -75,6 +82,13 @@ export function Save(id: string, title: string, body: string): $CancellablePromi
  */
 export function Search(query: string, limit: number, hideCompleted: boolean): $CancellablePromise<notes$0.Note[] | null> {
     return $Call.ByID(252173164, query, limit, hideCompleted);
+}
+
+/**
+ * SetPinned закрепляет заметку или снимает закрепление.
+ */
+export function SetPinned(id: string, pinned: boolean): $CancellablePromise<index$0.Record> {
+    return $Call.ByID(3728356338, id, pinned);
 }
 
 /**

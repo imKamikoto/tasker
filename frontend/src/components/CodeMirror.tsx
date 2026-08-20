@@ -28,6 +28,8 @@ type Props = {
   onWrite: () => void;
   /** :q — закрыть заметку. */
   onQuit: () => void;
+  /** Растёт, когда список просит передать фокус в текст. */
+  focusToken: number;
 };
 
 /**
@@ -37,8 +39,9 @@ type Props = {
  * вима, позицию курсора и историю отмен. Заметки переключаются через key на
  * родителе, а не подменой документа — так меньше мест, где можно ошибиться.
  */
-export function CodeMirror({ initialDoc, onChange, onWrite, onQuit }: Props) {
+export function CodeMirror({ initialDoc, onChange, onWrite, onQuit, focusToken }: Props) {
   const host = useRef<HTMLDivElement | null>(null);
+  const view = useRef<EditorView | null>(null);
 
   // Колбэки держим в ref: они меняются на каждом рендере родителя, а редактор
   // пересоздавать из-за этого нельзя. Классическая ловушка устаревшего
@@ -55,7 +58,7 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit }: Props) {
     // Русские буквы работают как команды по физической позиции клавиши.
     Vim.langmap(RU_LANGMAP, true);
 
-    const view = new EditorView({
+    const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({
         doc: initialDoc,
@@ -96,12 +99,22 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit }: Props) {
       }),
     });
 
-    view.focus();
-    return () => view.destroy();
+    editor.focus();
+    view.current = editor;
+    return () => {
+      editor.destroy();
+      view.current = null;
+    };
     // Пустой список зависимостей намеренно: редактор создаётся один раз.
     // initialDoc читается только при создании, дальше буфер живёт сам.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Enter в списке передаёт фокус сюда. Через число, а не через ref наружу:
+  // так фокус — это событие, а не состояние, и повторный запрос сработает.
+  useEffect(() => {
+    if (focusToken > 0) view.current?.focus();
+  }, [focusToken]);
 
   return <div className="cm-host" ref={host} />;
 }

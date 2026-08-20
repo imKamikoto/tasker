@@ -71,6 +71,16 @@ func (n *Notes) Trash(ctx context.Context, id string) error {
 	return n.service.Trash(ctx, id)
 }
 
+// SetPinned закрепляет заметку или снимает закрепление.
+func (n *Notes) SetPinned(ctx context.Context, id string, pinned bool) (index.Record, error) {
+	return n.service.SetPinned(ctx, id, pinned)
+}
+
+// Duplicate создаёт копию заметки рядом с оригиналом.
+func (n *Notes) Duplicate(ctx context.Context, id string) (index.Record, error) {
+	return n.service.Duplicate(ctx, id)
+}
+
 // Trashed возвращает содержимое корзины.
 func (n *Notes) Trashed(ctx context.Context, limit int) ([]notes.Note, error) {
 	return n.service.Search(ctx, "", notes.SearchOptions{Limit: limit, Trash: index.TrashOnly})

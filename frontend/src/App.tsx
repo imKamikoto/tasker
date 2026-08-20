@@ -48,6 +48,10 @@ export default function App() {
   // любую из сторон нельзя: обе — чья-то работа.
   const [conflict, setConflict] = useState(false);
 
+  // Просьба передать фокус в редактор. Число, а не флаг: Enter, нажатый дважды,
+  // должен сработать оба раза.
+  const [focusToken, setFocusToken] = useState(0);
+
   // Запрос собирается здесь, а не в Go, только потому что это склейка строки из
   // того, что человек уже выбрал. Разбирает и исполняет его всё равно Go.
   const search = buildQuery(filter, query);
@@ -126,10 +130,10 @@ export default function App() {
 
   // Обе операции корзины меняют список целиком: заметка либо уезжает обратно,
   // либо исчезает навсегда.
-  const act = useCallback((operation: Promise<unknown>) => {
+  const act = useCallback((operation: Promise<unknown>, keepSelection = false) => {
     operation
       .then(() => {
-        setSelected(null);
+        if (!keepSelection) setSelected(null);
         setRevision((n) => n + 1);
       })
       .catch((err) => setNoteError(describeError(err)));
@@ -189,17 +193,53 @@ export default function App() {
         return;
       }
 
-      if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+      // Дальше — команды списка, и в тексте им делать нечего: Cmd+D там
+      // мультикурсор CodeMirror (SPEC §8.6), Cmd+Backspace — удаление до
+      // начала строки, а буквы — буквы.
+      if (typing) return;
 
-      if (event.key === "j" || event.key === "k") {
-        event.preventDefault();
-        setSelected((current) => step(notes, current, event.key === "j" ? 1 : -1));
+      // Cmd+Backspace — в корзину, Cmd+D — дублировать (SPEC §8.4).
+      if (event.metaKey && !event.ctrlKey && !event.altKey && selected) {
+        if (event.key === "Backspace") {
+          event.preventDefault();
+          act(api.trash(selected));
+          return;
+        }
+        if (event.key === "d") {
+          event.preventDefault();
+          act(api.duplicate(selected));
+          return;
+        }
+      }
+
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      switch (event.key) {
+        case "j":
+        case "k":
+          event.preventDefault();
+          setSelected((current) => step(notes, current, event.key === "j" ? 1 : -1));
+          return;
+        case "Enter":
+          // Из списка — в текст. Обратно уводит вим по :q или мышь.
+          if (selected) {
+            event.preventDefault();
+            setFocusToken((n) => n + 1);
+          }
+          return;
+        case "p":
+          if (selected) {
+            event.preventDefault();
+            const note = notes.find((item) => item.ID === selected);
+            if (note) act(api.setPinned(selected, !note.Pinned), true);
+          }
+          return;
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notes, selected]);
+  }, [notes, selected, act]);
 
   return (
     <div
@@ -251,6 +291,7 @@ export default function App() {
           onDirty={(value) => (dirty.current = value)}
           onClose={() => setSelected(null)}
           conflict={conflict}
+          focusToken={focusToken}
           onReload={() => {
             // Пересоздание редактора выбрасывает буфер вместе с ним.
             dirty.current = false;

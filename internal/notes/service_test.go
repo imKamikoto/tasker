@@ -573,3 +573,107 @@ func TestSearchTrashOnly(t *testing.T) {
 	}
 	_ = live
 }
+
+func TestDuplicate(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	original, err := s.Create(ctx, CreateParams{
+		Title: "Оригинал", Body: "тело оригинала\n", Notebook: "Работа/Баги",
+		Tags: []string{"баг", "срочно"}, Status: vault.StatusActive, Pinned: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	copy, err := s.Duplicate(ctx, original.ID)
+	if err != nil {
+		t.Fatalf("Duplicate: %v", err)
+	}
+
+	if copy.ID == original.ID {
+		t.Error("копия получила id оригинала — ссылки бы разъехались")
+	}
+	if copy.Title != "Оригинал (копия)" {
+		t.Errorf("заголовок = %q", copy.Title)
+	}
+	if copy.Path == original.Path {
+		t.Errorf("копия легла поверх оригинала: %q", copy.Path)
+	}
+	if copy.Notebook != "Работа/Баги" || copy.Status != "active" || !copy.Pinned {
+		t.Errorf("свойства не перенесены: %+v", copy)
+	}
+	if len(copy.Tags) != 2 {
+		t.Errorf("теги = %v", copy.Tags)
+	}
+
+	got, err := s.Get(ctx, copy.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Body != "тело оригинала\n" {
+		t.Errorf("тело = %q", got.Body)
+	}
+
+	// Оригинал на месте и не изменился.
+	if _, err := s.Get(ctx, original.ID); err != nil {
+		t.Errorf("оригинал пострадал: %v", err)
+	}
+	found, err := s.Search(ctx, "", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 2 {
+		t.Errorf("заметок %d, ожидалось 2", len(found))
+	}
+}
+
+func TestSetPinned(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	created, err := s.Create(ctx, CreateParams{Title: "Заметка"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pinned, err := s.SetPinned(ctx, created.ID, true)
+	if err != nil {
+		t.Fatalf("SetPinned: %v", err)
+	}
+	if !pinned.Pinned {
+		t.Error("не закрепилась")
+	}
+	unpinned, err := s.SetPinned(ctx, created.ID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unpinned.Pinned {
+		t.Error("не открепилась")
+	}
+	// Заголовок при этом трогать нельзя.
+	if unpinned.Title != "Заметка" {
+		t.Errorf("заголовок = %q", unpinned.Title)
+	}
+}
+
+// Копия копии не должна затирать первую копию.
+func TestDuplicateTwice(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	original, err := s.Create(ctx, CreateParams{Title: "Оригинал"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := s.Duplicate(ctx, original.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.Duplicate(ctx, original.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Path == second.Path || first.ID == second.ID {
+		t.Errorf("копии совпали: %q и %q", first.Path, second.Path)
+	}
+}

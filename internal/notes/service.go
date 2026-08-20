@@ -332,6 +332,56 @@ func (s *Service) Trash(ctx context.Context, id string) error {
 	return s.commit(ctx, "trash", rec.Title)
 }
 
+// duplicateSuffix дописывается к заголовку копии.
+//
+// Заголовок — единственный источник имени файла, и без пометки копия сядет
+// рядом с оригиналом как «note-2.md»: по списку их будет не различить.
+const duplicateSuffix = " (копия)"
+
+// Duplicate создаёт копию заметки рядом с оригиналом.
+//
+// Новый id, новое время создания, тот же ноутбук, теги и статус. Ссылки в теле
+// копируются как есть: они ведут на те же заметки, что и в оригинале, и
+// переписывать их значило бы решать за человека.
+func (s *Service) Duplicate(ctx context.Context, id string) (index.Record, error) {
+	rec, err := s.index.Get(ctx, id)
+	if err != nil {
+		return index.Record{}, err
+	}
+	n, err := s.loadByPath(rec.Path)
+	if err != nil {
+		return index.Record{}, err
+	}
+
+	status, err := n.Doc.Meta.Status()
+	if err != nil {
+		return index.Record{}, err
+	}
+	tags, err := n.Doc.Meta.Tags()
+	if err != nil {
+		return index.Record{}, err
+	}
+	context, err := n.Doc.Meta.Context()
+	if err != nil {
+		return index.Record{}, err
+	}
+
+	return s.Create(ctx, CreateParams{
+		Title:    rec.Title + duplicateSuffix,
+		Body:     n.Doc.Body,
+		Notebook: rec.Notebook,
+		Tags:     tags,
+		Status:   status,
+		Pinned:   rec.Pinned,
+		Context:  context,
+	})
+}
+
+// SetPinned закрепляет заметку или снимает закрепление.
+func (s *Service) SetPinned(ctx context.Context, id string, pinned bool) (index.Record, error) {
+	return s.Update(ctx, UpdateParams{ID: id, Pinned: &pinned})
+}
+
 // Restore возвращает заметку из корзины туда, откуда она уехала.
 func (s *Service) Restore(ctx context.Context, id string) (index.Record, error) {
 	return s.fromTrash(ctx, id, "restore", func(n *vault.Note) error { return s.vault.Restore(n) })

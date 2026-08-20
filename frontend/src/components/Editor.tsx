@@ -15,6 +15,7 @@ type Props = {
   onClose: () => void;
   /** Файл изменился на диске, пока в буфере есть несохранённое. */
   conflict: boolean;
+  focusToken: number;
   onReload: () => void;
   onKeepMine: () => void;
 };
@@ -28,7 +29,16 @@ type SaveState = "clean" | "dirty" | "saving" | "failed";
  * не нужно ни подменять документ, ни сбрасывать состояние вима: этим
  * занимается React.
  */
-export function Editor({ note, onSaved, onDirty, onClose, conflict, onReload, onKeepMine }: Props) {
+export function Editor({
+  note,
+  onSaved,
+  onDirty,
+  onClose,
+  conflict,
+  focusToken,
+  onReload,
+  onKeepMine,
+}: Props) {
   const [title, setTitle] = useState(note.Title);
   const [state, setState] = useState<SaveState>("clean");
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +155,13 @@ export function Editor({ note, onSaved, onDirty, onClose, conflict, onReload, on
       {error && <div className="error">{error}</div>}
 
       <div className="editor__body">
-        <CodeMirror initialDoc={note.Body} onChange={onBody} onWrite={save} onQuit={onClose} />
+        <CodeMirror
+          initialDoc={note.Body}
+          onChange={onBody}
+          onWrite={save}
+          onQuit={onClose}
+          focusToken={focusToken}
+        />
       </div>
     </div>
   );
