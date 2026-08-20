@@ -1,0 +1,269 @@
+/* Палитра лежит в theme/ вне frontend/ — она общая для приложения и превью. */
+@import "../../theme/palette.css";
+
+:root {
+  /* Токены, которых в палитре нет: она описывает цвета, а не интерфейс. */
+  --color-fg: hsl(var(--hsl-fg));
+  --color-fg-muted: hsl(var(--hsl-fg-muted) / 0.62);
+  --color-border: hsl(var(--hsl-base3) / 0.1);
+
+  --sidebar-width: 216px;
+  --list-width: 320px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font: 13px/1.5 var(--font-ui);
+  /* Системный ввод заглушён насовсем — см. решение по фазе 0. */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Три колонки: сайдбар, список, редактор (SPEC §7). */
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1px var(--list-width) 1px 1fr;
+  height: 100%;
+}
+
+.pane {
+  overflow-y: auto;
+  height: 100%;
+}
+
+/* Верхние 42 пикселя окна отданы под перетаскивание за скрытый заголовок
+   (MacTitleBarHiddenInset). Ничего кликабельного там быть не должно, иначе
+   нажатие уедет в перетаскивание окна вместо элемента. */
+.pane--sidebar,
+.pane--list {
+  padding-top: 42px;
+}
+
+.pane--sidebar {
+  background: var(--color-bg-shadow);
+}
+
+.pane--list {
+  background: var(--color-bg);
+}
+
+.pane--editor {
+  background: var(--color-bg);
+  padding: 42px 32px 32px;
+}
+
+/* Разделитель: тянется мышью, но видно его только при наведении. */
+.splitter {
+  cursor: col-resize;
+  background: var(--color-border);
+  position: relative;
+}
+
+.splitter::after {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.splitter:hover,
+.splitter[data-dragging="true"] {
+  background: var(--color-oak-200);
+}
+
+.section-title {
+  padding: 14px 16px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 16px;
+  border: 0;
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.row:hover {
+  background: var(--color-oak-100);
+}
+
+.row[aria-selected="true"] {
+  background: var(--color-oak-400);
+}
+
+.row__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__count {
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.row--nested {
+  padding-left: 32px;
+}
+
+.note {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.note:hover {
+  background: var(--color-oak-100);
+}
+
+.note[aria-selected="true"] {
+  background: var(--color-oak-400);
+}
+
+.note__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+
+.note__title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note__excerpt {
+  color: var(--color-fg-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  color: var(--color-fg-muted);
+  font-size: 11px;
+}
+
+.tag {
+  color: var(--color-oak-600);
+}
+
+.status {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--color-oak-200);
+  color: var(--color-oak-800);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pin {
+  color: var(--color-oak);
+}
+
+.search {
+  width: 100%;
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-shadow);
+  color: var(--color-fg);
+  font: inherit;
+}
+
+.search::placeholder {
+  color: var(--color-fg-muted);
+}
+
+.search:focus {
+  outline: none;
+  background: var(--color-bg-elevated);
+}
+
+.empty {
+  padding: 24px 16px;
+  color: var(--color-fg-muted);
+}
+
+.error {
+  margin: 0 16px 16px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--color-yellow);
+  background: var(--color-bg-elevated);
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.editor__title {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: var(--color-fg);
+  font: 500 22px/1.3 var(--font-ui);
+  margin-bottom: 4px;
+}
+
+.editor__title:focus {
+  outline: none;
+}
+
+.editor__meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-fg-muted);
+  font-size: 11px;
+}
+
+.editor__body {
+  padding-top: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

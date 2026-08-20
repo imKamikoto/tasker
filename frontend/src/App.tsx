@@ -1,121 +1,120 @@
-import { useState, useEffect, useRef } from 'react'
-import {Events, WML} from "@wailsio/runtime";
-import {GreetService} from "../bindings/changeme";
+import { useCallback, useEffect, useState } from "react";
 
-// Show the actual Wails version this project was generated against.
-const wailsVersion = "v3.0.0-beta.9";
+import { api, describeError, type Note, type Notebook, type Tag } from "./api";
+import { Editor } from "./components/Editor";
+import { NoteList } from "./components/NoteList";
+import { Sidebar, type Filter } from "./components/Sidebar";
+import { Splitter } from "./components/Splitter";
 
-function App() {
-  const [name, setName] = useState<string>('');
-  const [time, setTime] = useState<string>('Listening for Time event...');
+/** Сколько заметок просим за раз. Виртуализация списка — задача фазы 4. */
+const pageSize = 200;
 
-  const titleNameRef = useRef<HTMLSpanElement | null>(null);
-  const toastRef = useRef<HTMLDivElement | null>(null);
-  const resultRef = useRef<HTMLSpanElement | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+export default function App() {
+  const [sidebarWidth, setSidebarWidth] = useState(216);
+  const [listWidth, setListWidth] = useState(320);
 
-  // Crossfade the framework word in the heading ("Wails + React") to the name
-  // the user entered ("Wails + <name>"): the old word fades out while the new one
-  // fades in over the same spot.
-  const swapTitleName = (name: string) => {
-    const titleNameElement = titleNameRef.current;
-    if (!titleNameElement) {
-      return;
-    }
-    const current = titleNameElement.querySelector('.title-name-text:not(.is-outgoing)');
-    if (!current || current.textContent === name) {
-      return;
-    }
-    const incoming = document.createElement('span');
-    incoming.className = 'title-name-text is-entering';
-    incoming.textContent = name;
-    current.classList.add('is-outgoing');
-    titleNameElement.appendChild(incoming);
-    // Force a reflow so the transitions run from the starting state.
-    void incoming.offsetWidth;
-    incoming.classList.remove('is-entering');
-    current.classList.add('is-leaving');
-    current.addEventListener('transitionend', () => current.remove(), {once: true});
-  };
+  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [note, setNote] = useState<Note | null>(null);
 
-  // Pop the toast with the message Go returned, then auto-dismiss it.
-  const showToast = (message: string) => {
-    if (resultRef.current) {
-      resultRef.current.innerText = message;
-    }
-    if (toastRef.current) {
-      toastRef.current.classList.add('is-visible');
-    }
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => {
-      if (toastRef.current) {
-        toastRef.current.classList.remove('is-visible');
-      }
-    }, 4000);
-  };
+  const [filter, setFilter] = useState<Filter>({ kind: "all" });
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState<string | null>(null);
 
-  const doGreet = () => {
-    let n = name || 'anonymous';
-    swapTitleName(n);
-    GreetService.Greet(n).then(showToast).catch(console.error);
-  };
+  // Запрос собирается здесь, а не в Go, только потому что это склейка строки из
+  // того, что человек уже выбрал. Разбирает и исполняет его всё равно Go.
+  const search = buildQuery(filter, query);
 
   useEffect(() => {
-    Events.On('time', (timeValue: any) => {
-      // On a narrow screen the full RFC1123 stamp is too wide for the footer, so
-      // show just the clock time there (matching the CSS breakpoint).
-      const full = timeValue.data;
-      const compact = (full.match(/\d{1,2}:\d{2}:\d{2}/) || [full])[0];
-      setTime(window.matchMedia('(max-width: 640px)').matches ? compact : full);
-    });
-    // Reload WML so it picks up the wml tags
-    WML.Reload();
+    let cancelled = false;
+    Promise.all([api.notebooks(), api.tags()])
+      .then(([books, tagList]) => {
+        if (cancelled) return;
+        setNotebooks(books);
+        setTags(tagList);
+      })
+      .catch((err) => !cancelled && setListError(describeError(err)));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .search(search, pageSize)
+      .then((found) => {
+        if (cancelled) return;
+        setNotes(found);
+        setListError(null);
+      })
+      .catch((err) => !cancelled && setListError(describeError(err)));
+    return () => {
+      cancelled = true;
+    };
+  }, [search]);
+
+  useEffect(() => {
+    if (!selected) {
+      setNote(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get(selected)
+      .then((loaded) => {
+        if (cancelled) return;
+        setNote(loaded);
+        setNoteError(null);
+      })
+      .catch((err) => !cancelled && setNoteError(describeError(err)));
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
+  const onFilter = useCallback((next: Filter) => {
+    setFilter(next);
+    setSelected(null);
   }, []);
 
   return (
-    <>
-      <main className="container">
-        <header className="brand">
-          <a className="brand-mark" data-wml-openURL="https://v3.wails.io" aria-label="Wails website">
-            <img src="/wails.png" className="brand-logo" alt="Wails logo"/>
-          </a>
-          <a className="brand-badge" data-wml-openURL="https://reactjs.org" aria-label="React">
-            <img src="/react.svg" alt="React logo"/>
-          </a>
-        </header>
-
-        <h1 className="title"><span className="title-accent">Wails +</span> <span className="title-name" ref={titleNameRef}><span className="title-name-text">React</span></span></h1>
-        <p className="subtitle">Build beautiful cross-platform apps with Go and React.</p>
-
-        <div className="greet">
-          <div className="input-box">
-            <svg className="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <input aria-label="input" className="input" value={name} onChange={(e) => setName(e.target.value)} type="text" placeholder="Your name" autoComplete="off"/>
-            <button aria-label="greet-btn" className="btn" onClick={doGreet}>Greet
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-            </button>
-          </div>
-        </div>
-      </main>
-
-      <hr className="footer-divider"/>
-      <footer className="footer">
-        <span className="footer-version"><span>{wailsVersion}</span></span>
-        <span className="footer-time">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span>{time}</span>
-        </span>
-        <a className="footer-docs" data-wml-openURL="https://v3.wails.io" aria-label="Wails documentation">Docs
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-        </a>
-      </footer>
-
-      <div className="toast" ref={toastRef} role="status" aria-live="polite">
-        <span className="toast-label">From Go</span>
-        <span aria-label="result" className="toast-msg" ref={resultRef}></span>
-      </div>
-    </>
-  )
+    <div
+      className="layout"
+      style={{ gridTemplateColumns: `${sidebarWidth}px 1px ${listWidth}px 1px 1fr` }}
+    >
+      <Sidebar notebooks={notebooks} tags={tags} filter={filter} onFilter={onFilter} />
+      <Splitter width={sidebarWidth} min={160} max={400} onChange={setSidebarWidth} />
+      <NoteList
+        notes={notes}
+        selected={selected}
+        query={query}
+        error={listError}
+        onQuery={setQuery}
+        onSelect={setSelected}
+      />
+      <Splitter width={listWidth} min={240} max={600} onChange={setListWidth} />
+      <Editor note={note} error={noteError} />
+    </div>
+  );
 }
 
-export default App
+/**
+ * buildQuery складывает выбранное в сайдбаре и набранное в поле поиска в один
+ * запрос на языке из SPEC §8.5.
+ */
+function buildQuery(filter: Filter, query: string): string {
+  const parts: string[] = [];
+  if (filter.kind === "notebook") parts.push(`book:${quote(filter.path)}`);
+  if (filter.kind === "tag") parts.push(`tag:${quote(filter.name)}`);
+  if (query.trim() !== "") parts.push(query.trim());
+  return parts.join(" ");
+}
+
+/** quote берёт значение в кавычки, если в нём есть пробелы. */
+function quote(value: string): string {
+  return /\s/.test(value) ? `"${value}"` : value;
+}
