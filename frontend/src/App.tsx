@@ -42,6 +42,10 @@ export default function App() {
   // обработчику события, а не разметке.
   const dirty = useRef(false);
 
+  // Файл изменился на диске, пока в буфере лежит несохранённое. Молча взять
+  // любую из сторон нельзя: обе — чья-то работа.
+  const [conflict, setConflict] = useState(false);
+
   // Запрос собирается здесь, а не в Go, только потому что это склейка строки из
   // того, что человек уже выбрал. Разбирает и исполняет его всё равно Go.
   const search = buildQuery(filter, query);
@@ -100,10 +104,11 @@ export default function App() {
     const off = [
       subscribe(events.notesChanged, () => setRevision((n) => n + 1)),
       subscribe<NoteChanged>(events.noteChanged, (changed) => {
-        // Открытую заметку перечитываем, только если в ней нет несохранённого:
-        // иначе правка пользователя молча заменилась бы содержимым с диска.
-        // Случай с несохранённым — это плашка «файл изменён снаружи», её ещё нет.
-        if (changed.id === selected && !dirty.current) setRevision((n) => n + 1);
+        if (changed.id !== selected) return;
+        // Чистый буфер просто перечитываем. С несохранённым решает человек:
+        // молча затереть его правку содержимым с диска нельзя (SPEC §5.3).
+        if (dirty.current) setConflict(true);
+        else setRevision((n) => n + 1);
       }),
     ];
     return () => off.forEach((unsubscribe) => unsubscribe());
@@ -112,6 +117,7 @@ export default function App() {
   const onFilter = useCallback((next: Filter) => {
     setFilter(next);
     setSelected(null);
+    setConflict(false);
   }, []);
 
   // После записи обновляем строку в списке на месте: перезапрашивать весь
@@ -173,6 +179,14 @@ export default function App() {
           onSaved={onSaved}
           onDirty={(value) => (dirty.current = value)}
           onClose={() => setSelected(null)}
+          conflict={conflict}
+          onReload={() => {
+            // Пересоздание редактора выбрасывает буфер вместе с ним.
+            dirty.current = false;
+            setConflict(false);
+            setRevision((n) => n + 1);
+          }}
+          onKeepMine={() => setConflict(false)}
         />
       )}
     </div>

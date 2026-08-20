@@ -288,3 +288,33 @@ body {
 .editor__state[data-state="failed"] {
   color: var(--color-yellow);
 }
+
+/* Файл изменён снаружи: обе стороны — чья-то работа, поэтому выбирает человек. */
+.conflict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--color-oak);
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+}
+
+.conflict span {
+  flex: 1;
+}
+
+.conflict button {
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-oak-200);
+  color: var(--color-oak-800);
+  font: inherit;
+  cursor: default;
+}
+
+.conflict button:hover {
+  background: var(--color-oak-400);
+}

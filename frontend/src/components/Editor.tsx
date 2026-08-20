@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, describeError, type Note, type NoteRecord } from "../api";
+import { api, describeError, events, subscribe, type Note, type NoteRecord } from "../api";
 import { CodeMirror } from "./CodeMirror";
 
 /** Сколько ждать после последней правки перед записью (SPEC §, фаза 3). */
@@ -13,6 +13,10 @@ type Props = {
    *  перечитать заметку, изменившуюся на диске. */
   onDirty: (dirty: boolean) => void;
   onClose: () => void;
+  /** Файл изменился на диске, пока в буфере есть несохранённое. */
+  conflict: boolean;
+  onReload: () => void;
+  onKeepMine: () => void;
 };
 
 type SaveState = "clean" | "dirty" | "saving" | "failed";
@@ -24,7 +28,7 @@ type SaveState = "clean" | "dirty" | "saving" | "failed";
  * не нужно ни подменять документ, ни сбрасывать состояние вима: этим
  * занимается React.
  */
-export function Editor({ note, onSaved, onDirty, onClose }: Props) {
+export function Editor({ note, onSaved, onDirty, onClose, conflict, onReload, onKeepMine }: Props) {
   const [title, setTitle] = useState(note.Title);
   const [state, setState] = useState<SaveState>("clean");
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +82,17 @@ export function Editor({ note, onSaved, onDirty, onClose }: Props) {
     };
   }, []);
 
+  // Окно закрывается: Go ждёт, пока буфер уедет на диск, и только потом
+  // отпускает закрытие (SPEC §6).
+  useEffect(() => {
+    return subscribe(events.beforeClose, () => {
+      void saveRef
+        .current()
+        .catch(() => undefined)
+        .finally(() => void api.readyToClose());
+    });
+  }, []);
+
   const onTitle = useCallback(
     (value: string) => {
       setTitle(value);
@@ -118,6 +133,14 @@ export function Editor({ note, onSaved, onDirty, onClose }: Props) {
           {stateLabel(state)}
         </span>
       </div>
+
+      {conflict && (
+        <div className="conflict">
+          <span>Файл изменён снаружи, а здесь есть несохранённое.</span>
+          <button onClick={onReload}>Взять с диска</button>
+          <button onClick={onKeepMine}>Оставить моё</button>
+        </div>
+      )}
 
       {error && <div className="error">{error}</div>}
 

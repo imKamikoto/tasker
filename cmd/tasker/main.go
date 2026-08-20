@@ -4,16 +4,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"tasker"
 	"tasker/internal/app"
+	"tasker/internal/gitstore"
 	"tasker/internal/notes"
 	"tasker/internal/vault"
 	"tasker/internal/watcher"
@@ -64,10 +68,45 @@ func run(args []string) error {
 	// редактор примется перечитывать собственный буфер (SPEC §5.3).
 	service.Vault().OnWrite(files.Ignore)
 
-	instance := newApplication(service)
+	instance, window := newApplication(service)
 	go app.NewWatch(service, emitter(instance), logError).Run(ctx, files.Events())
+	registerClosing(instance, window, service)
 
 	return instance.Run()
+}
+
+// registerClosing перехватывает закрытие окна, чтобы интерфейс успел дописать
+// буфер, а история — забрать последние правки (SPEC §6).
+func registerClosing(instance *application.App, window *application.WebviewWindow, service *notes.Service) {
+	closing := app.NewClosing(func() { instance.Event.Emit(app.EventBeforeClose, nil) }, 0)
+	// Сервис регистрируется отдельно: Ready вызывается из вебвью и иначе туда
+	// не попадёт.
+	instance.RegisterService(application.NewService(closing))
+
+	var finishing atomic.Bool
+	window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if finishing.Load() {
+			// Второй заход: буфер уже сброшен, закрываемся по-настоящему.
+			return
+		}
+		event.Cancel()
+		finishing.Store(true)
+
+		// В отдельной горутине: хук выполняется в главном потоке, и ждать
+		// ответа прямо здесь значит остановить тот самый вебвью, от которого
+		// ответа и ждём.
+		go func() {
+			if !closing.Wait() {
+				logError(errors.New("интерфейс не ответил до закрытия, несохранённое могло пропасть"))
+			}
+			// Обычно коммитить нечего: каждое сохранение уже закоммичено.
+			// Но сюда попадает всё, что записалось мимо этого пути.
+			if _, err := service.Git().Commit(context.Background(), gitstore.NotesMessage(nil)); err != nil {
+				logError(err)
+			}
+			window.Close()
+		}()
+	})
 }
 
 // emitter отдаёт функцию рассылки событий в окно.
@@ -86,7 +125,7 @@ func logError(err error) {
 	log.Printf("tasker: %v", err)
 }
 
-func newApplication(service *notes.Service) *application.App {
+func newApplication(service *notes.Service) (*application.App, *application.WebviewWindow) {
 	instance := application.New(application.Options{
 		Name:        "Tasker",
 		Description: "Заметки и задачи",
@@ -101,7 +140,7 @@ func newApplication(service *notes.Service) *application.App {
 		},
 	})
 
-	instance.Window.NewWithOptions(application.WebviewWindowOptions{
+	window := instance.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  "Tasker",
 		Width:  1200,
 		Height: 800,
@@ -112,7 +151,7 @@ func newApplication(service *notes.Service) *application.App {
 		BackgroundColour: application.NewRGB(26, 23, 20),
 		URL:              "/",
 	})
-	return instance
+	return instance, window
 }
 
 // vaultPath разворачивает путь к vault: флаг, иначе ~/Notes.

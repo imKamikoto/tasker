@@ -1,6 +1,6 @@
 import { Events } from "@wailsio/runtime";
 
-import { Notes } from "../bindings/tasker/internal/app";
+import { Closing, Notes } from "../bindings/tasker/internal/app";
 import type { Record as NoteRecord, Notebook, Tag } from "../bindings/tasker/internal/index/models";
 import type { Note } from "../bindings/tasker/internal/notes/models";
 
@@ -24,12 +24,15 @@ export const api = {
   setStatus: (id: string, status: string) => Notes.SetStatus(id, status),
   trash: (id: string) => Notes.Trash(id),
   create: (title: string, notebook: string) => Notes.Create(title, notebook),
+  /** Ответ Go: буфер записан, окно можно закрывать. */
+  readyToClose: () => Closing.Ready(),
 };
 
 /** Имена событий из SPEC §6. Совпадают с константами в internal/app. */
 export const events = {
   notesChanged: "tasker:notes-changed",
   noteChanged: "tasker:note-changed",
+  beforeClose: "tasker:before-close",
 } as const;
 
 /** Заметка изменилась на диске. */

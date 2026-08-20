@@ -17,6 +17,7 @@ import {
 import { Vim, vim } from "@replit/codemirror-vim";
 
 import { oakHighlight, oakTheme } from "../editorTheme";
+import { continueList } from "../lists";
 import { RU_LANGMAP } from "../langmap";
 
 type Props = {
@@ -77,6 +78,9 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit }: Props) {
           oakHighlight,
           oakTheme,
           EditorView.lineWrapping,
+          // Продолжение списков идёт раньше умолчаний, иначе Enter заберёт
+          // дефолтная привязка и до нас не дойдёт.
+          keymap.of([{ key: "Enter", run: continueListOnEnter }]),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
           // Системный ввод macOS заглушён целиком: прямые кавычки остаются
           // прямыми, два дефиса — двумя дефисами. Решение фазы 0, менять нельзя.
@@ -100,4 +104,34 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit }: Props) {
   }, []);
 
   return <div className="cm-host" ref={host} />;
+}
+
+/**
+ * continueListOnEnter продолжает список, чекбокс или нумерацию.
+ *
+ * Срабатывает только в конце строки и при одном курсоре: посередине строки
+ * Enter должен просто разрывать текст, а с несколькими курсорами дописывать
+ * маркеры — почти наверняка не то, чего от него ждут.
+ */
+function continueListOnEnter(view: EditorView): boolean {
+  const { state } = view;
+  if (state.selection.ranges.length !== 1 || !state.selection.main.empty) return false;
+
+  const pos = state.selection.main.head;
+  const line = state.doc.lineAt(pos);
+  if (pos !== line.to) return false;
+
+  const action = continueList(line.text);
+  if (!action) return false;
+
+  if (action.kind === "clear") {
+    view.dispatch({ changes: { from: line.from, to: line.to, insert: "" } });
+    return true;
+  }
+  view.dispatch({
+    changes: { from: pos, insert: action.insert },
+    selection: { anchor: pos + action.insert.length },
+    scrollIntoView: true,
+  });
+  return true;
 }
