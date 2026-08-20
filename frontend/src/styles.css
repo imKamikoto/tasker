@@ -7,6 +7,10 @@
   --color-fg-muted: hsl(var(--hsl-fg-muted) / 0.62);
   --color-border: hsl(var(--hsl-base3) / 0.1);
 
+  /* Высота строки списка фиксирована: на ней стоит виртуализация. Совпадает
+     с rowHeight в NoteList. */
+  --row-height: 104px;
+
   --sidebar-width: 216px;
   --list-width: 320px;
 
@@ -59,6 +63,16 @@ body {
 
 .pane--list {
   background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Прокручивается сам список, а не колонка: поле поиска остаётся на месте. */
+.notes {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .pane--editor {
@@ -134,7 +148,9 @@ body {
 .note {
   display: block;
   width: 100%;
+  height: var(--row-height);
   padding: 10px 16px;
+  overflow: hidden;
   border: 0;
   border-bottom: 1px solid var(--color-border);
   background: none;

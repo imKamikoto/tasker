@@ -1,4 +1,13 @@
+import { useLayoutEffect, useRef, useState } from "react";
+
 import type { Note } from "../api";
+import { visibleWindow } from "../virtual";
+
+/** Высота строки списка. Совпадает с --row-height в стилях. */
+const rowHeight = 104;
+
+/** Сколько строк рисовать про запас, чтобы быстрая прокрутка не мигала. */
+const overscan = 6;
 
 type Props = {
   notes: Note[];
@@ -9,8 +18,39 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
-/** NoteList — поле запроса и список найденного. */
+/**
+ * NoteList — поле запроса и список найденного.
+ *
+ * Рисуются только видимые строки: десять тысяч заметок должны скроллиться без
+ * лагов (SPEC §8.4), а десять тысяч узлов DOM этого не дают.
+ */
 export function NoteList({ notes, selected, query, error, onQuery, onSelect }: Props) {
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewport, setViewport] = useState(0);
+
+  // Высоту окна меряем после отрисовки и следим за изменением: разделители
+  // тянутся мышью, и колонка меняет размер без перезагрузки.
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+
+    const measure = () => setViewport(element.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  // Не window: имя затеняло бы глобальный объект.
+  const visible = visibleWindow({
+    total: notes.length,
+    rowHeight,
+    viewport,
+    scrollTop,
+    overscan,
+  });
+
   return (
     <div className="pane pane--list">
       <input
@@ -25,7 +65,13 @@ export function NoteList({ notes, selected, query, error, onQuery, onSelect }: P
       {error && <div className="error">{error}</div>}
       {!error && notes.length === 0 && <div className="empty">Ничего не найдено</div>}
 
-      {notes.map((note) => (
+      <div
+        className="notes"
+        ref={scroller}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
+        <div style={{ height: visible.padTop }} />
+        {notes.slice(visible.first, visible.end).map((note) => (
         <button
           key={note.ID}
           className="note"
@@ -52,7 +98,9 @@ export function NoteList({ notes, selected, query, error, onQuery, onSelect }: P
             ))}
           </div>
         </button>
-      ))}
+        ))}
+        <div style={{ height: visible.padBottom }} />
+      </div>
     </div>
   );
 }
