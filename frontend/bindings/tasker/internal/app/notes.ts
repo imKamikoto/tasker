@@ -54,10 +54,12 @@ export function Save(id: string, title: string, body: string): $CancellablePromi
 
 /**
  * Search находит заметки по запросу на языке из SPEC §8.5.
- * Пустой запрос означает все заметки.
+ * 
+ * Пустой запрос означает все заметки. hideCompleted убирает завершённое и
+ * брошенное — так список ноутбука выглядит по умолчанию (SPEC §8.3).
  */
-export function Search(query: string, limit: number): $CancellablePromise<notes$0.Note[] | null> {
-    return $Call.ByID(252173164, query, limit);
+export function Search(query: string, limit: number, hideCompleted: boolean): $CancellablePromise<notes$0.Note[] | null> {
+    return $Call.ByID(252173164, query, limit, hideCompleted);
 }
 
 /**
@@ -72,6 +74,17 @@ export function SetStatus(id: string, status: string): $CancellablePromise<index
  */
 export function Tags(): $CancellablePromise<index$0.Tag[] | null> {
     return $Call.ByID(351009625);
+}
+
+/**
+ * Tasks — что сейчас в работе: active и onHold из всех ноутбуков.
+ * 
+ * Отдельный метод, а не запрос: язык соединяет условия только через И, а здесь
+ * нужно ИЛИ по статусам. Это псевдо-ноутбук «Активные», главный экран рабочего
+ * дня (SPEC §8.3).
+ */
+export function Tasks(limit: number): $CancellablePromise<notes$0.Note[] | null> {
+    return $Call.ByID(4129384194, limit);
 }
 
 /**

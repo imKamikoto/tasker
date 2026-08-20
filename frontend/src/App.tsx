@@ -14,6 +14,7 @@ import {
 import { Editor } from "./components/Editor";
 import { NoteList } from "./components/NoteList";
 import { Sidebar, type Filter } from "./components/Sidebar";
+import { statusForKey } from "./statuses";
 import { Splitter } from "./components/Splitter";
 
 /** Сколько заметок просим за раз. Виртуализация списка — задача фазы 4. */
@@ -28,7 +29,8 @@ export default function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [note, setNote] = useState<Note | null>(null);
 
-  const [filter, setFilter] = useState<Filter>({ kind: "all" });
+  // «Активные» по умолчанию: с этого экрана начинается рабочий день (SPEC §8.3).
+  const [filter, setFilter] = useState<Filter>({ kind: "active" });
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
@@ -66,8 +68,14 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .search(search, pageSize)
+    // Завершённое и брошенное прячем, пока человек сам не спросит про статус
+    // (SPEC §8.3). «Активные» и так собраны по статусам.
+    const request =
+      filter.kind === "active"
+        ? api.tasks(pageSize)
+        : api.search(search, pageSize, !query.includes("status:"));
+
+    request
       .then((found) => {
         if (cancelled) return;
         setNotes(found);
@@ -77,7 +85,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [search, revision]);
+  }, [search, revision, filter.kind, query]);
 
   useEffect(() => {
     if (!selected) {
@@ -144,6 +152,42 @@ export default function App() {
     );
   }, []);
 
+  // Клавиатура списка. Слушаем окно, а не список: фокус может быть где угодно,
+  // а шоткаты статусов должны работать и из редактора (SPEC §8.4, §8.3).
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      // В поле ввода буквы — это буквы, а не команды.
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable === true;
+
+      if (event.metaKey && event.ctrlKey) {
+        const status = statusForKey(event.key);
+        if (status && selected) {
+          event.preventDefault();
+          void api
+            .setStatus(selected, status)
+            // Заметка могла перестать подходить под фильтр — перечитываем список.
+            .then(() => setRevision((n) => n + 1))
+            .catch((err) => setListError(describeError(err)));
+        }
+        return;
+      }
+
+      if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (event.key === "j" || event.key === "k") {
+        event.preventDefault();
+        setSelected((current) => step(notes, current, event.key === "j" ? 1 : -1));
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [notes, selected]);
+
   return (
     <div
       className="layout"
@@ -191,6 +235,20 @@ export default function App() {
       )}
     </div>
   );
+}
+
+/**
+ * step двигает выделение по списку, не выходя за края: на границе оставаться
+ * на месте понятнее, чем прыгать на другой конец.
+ */
+function step(notes: Note[], selected: string | null, direction: 1 | -1): string | null {
+  if (notes.length === 0) return null;
+  const current = notes.findIndex((note) => note.ID === selected);
+  if (current < 0) return notes[direction === 1 ? 0 : notes.length - 1].ID;
+
+  const next = current + direction;
+  if (next < 0 || next >= notes.length) return selected;
+  return notes[next].ID;
 }
 
 /**

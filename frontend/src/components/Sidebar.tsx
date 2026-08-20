@@ -1,6 +1,10 @@
 import type { Notebook, Tag } from "../api";
 
-export type Filter = { kind: "all" } | { kind: "notebook"; path: string } | { kind: "tag"; name: string };
+export type Filter =
+  | { kind: "active" }
+  | { kind: "all" }
+  | { kind: "notebook"; path: string }
+  | { kind: "tag"; name: string };
 
 type Props = {
   notebooks: Notebook[];
@@ -13,6 +17,14 @@ type Props = {
 export function Sidebar({ notebooks, tags, filter, onFilter }: Props) {
   return (
     <nav className="pane pane--sidebar">
+      {/* «Активные» первым: это главный экран рабочего дня (SPEC §8.3). */}
+      <button
+        className="row"
+        aria-selected={filter.kind === "active"}
+        onClick={() => onFilter({ kind: "active" })}
+      >
+        <span className="row__label">Активные</span>
+      </button>
       <button
         className="row"
         aria-selected={filter.kind === "all"}

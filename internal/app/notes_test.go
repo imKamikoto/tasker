@@ -35,7 +35,7 @@ func TestCreateSearchGet(t *testing.T) {
 		t.Fatalf("создано = %+v", created)
 	}
 
-	found, err := n.Search(ctx, "перерасч", 20)
+	found, err := n.Search(ctx, "перерасч", 20, false)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestTrashRemovesFromSearch(t *testing.T) {
 	if err := n.Trash(ctx, created.ID); err != nil {
 		t.Fatalf("Trash: %v", err)
 	}
-	found, err := n.Search(ctx, "", 20)
+	found, err := n.Search(ctx, "", 20, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,5 +151,47 @@ func TestGetUnknown(t *testing.T) {
 	n := testNotes(t)
 	if _, err := n.Get(context.Background(), "01K3QF8ZN7X2WPBV4YHMC6TDAE"); !errors.Is(err, index.ErrNotFound) {
 		t.Errorf("ошибка = %v, ожидалась ErrNotFound", err)
+	}
+}
+
+// «Активные» собирает active и onHold из всех ноутбуков, а завершённые прячет.
+func TestTasksAndHideCompleted(t *testing.T) {
+	n := testNotes(t)
+	ctx := context.Background()
+
+	for _, c := range []struct{ title, status string }{
+		{"Активная", "active"}, {"Отложенная", "onHold"},
+		{"Завершённая", "completed"}, {"Брошенная", "dropped"}, {"Без статуса", "none"},
+	} {
+		created, err := n.Create(ctx, c.title, "Работа")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := n.SetStatus(ctx, created.ID, c.status); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tasks, err := n.Tasks(ctx, 50)
+	if err != nil {
+		t.Fatalf("Tasks: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Errorf("в работе %d, ожидалось 2: %+v", len(tasks), tasks)
+	}
+
+	visible, err := n.Search(ctx, "book:Работа", 50, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(visible) != 3 {
+		t.Errorf("видимых %d, ожидалось 3 (без завершённой и брошенной)", len(visible))
+	}
+	all, err := n.Search(ctx, "book:Работа", 50, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 5 {
+		t.Errorf("всего %d, ожидалось 5", len(all))
 	}
 }

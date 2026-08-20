@@ -23,9 +23,20 @@ func NewNotes(service *notes.Service) *Notes {
 }
 
 // Search находит заметки по запросу на языке из SPEC §8.5.
-// Пустой запрос означает все заметки.
-func (n *Notes) Search(ctx context.Context, query string, limit int) ([]notes.Note, error) {
-	return n.service.Search(ctx, query, notes.SearchOptions{Limit: limit})
+//
+// Пустой запрос означает все заметки. hideCompleted убирает завершённое и
+// брошенное — так список ноутбука выглядит по умолчанию (SPEC §8.3).
+func (n *Notes) Search(ctx context.Context, query string, limit int, hideCompleted bool) ([]notes.Note, error) {
+	return n.service.Search(ctx, query, notes.SearchOptions{Limit: limit, HideCompleted: hideCompleted})
+}
+
+// Tasks — что сейчас в работе: active и onHold из всех ноутбуков.
+//
+// Отдельный метод, а не запрос: язык соединяет условия только через И, а здесь
+// нужно ИЛИ по статусам. Это псевдо-ноутбук «Активные», главный экран рабочего
+// дня (SPEC §8.3).
+func (n *Notes) Tasks(ctx context.Context, limit int) ([]notes.Note, error) {
+	return n.service.Tasks(ctx, notes.TasksParams{Limit: limit})
 }
 
 // Get читает заметку целиком: тело, исходящие ссылки и бэклинки.

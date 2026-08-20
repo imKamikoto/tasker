@@ -369,6 +369,7 @@ type SearchOptions struct {
 	Limit          int
 	IncludeBody    bool
 	IncludeTrashed bool
+	HideCompleted  bool
 }
 
 // Search выполняет запрос на языке из SPEC §8.5.
@@ -380,6 +381,7 @@ func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) 
 	records, err := s.index.Search(ctx, q, index.SearchOptions{
 		Limit:          opts.Limit,
 		IncludeTrashed: opts.IncludeTrashed,
+		HideCompleted:  opts.HideCompleted,
 	})
 	if err != nil {
 		return nil, err

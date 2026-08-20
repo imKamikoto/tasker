@@ -16,7 +16,9 @@ export type { NoteRecord, Notebook, Tag, Note };
 export const api = {
   // Пустой срез в Go — это null в JSON, и биндинги честно объявляют его в типе.
   // Разворачиваем здесь, на границе, чтобы дальше по коду никто про это не помнил.
-  search: (query: string, limit: number) => Notes.Search(query, limit).then(nonNull),
+  search: (query: string, limit: number, hideCompleted: boolean) =>
+    Notes.Search(query, limit, hideCompleted).then(nonNull),
+  tasks: (limit: number) => Notes.Tasks(limit).then(nonNull),
   get: (id: string) => Notes.Get(id),
   notebooks: () => Notes.Notebooks().then(nonNull),
   tags: () => Notes.Tags().then(nonNull),

@@ -14,6 +14,13 @@ type SearchOptions struct {
 	// IncludeTrashed добавляет к выдаче корзину. По умолчанию её нет: удалённое
 	// не должно всплывать в обычном поиске.
 	IncludeTrashed bool
+
+	// HideCompleted убирает завершённое и брошенное. Так выглядит список
+	// ноутбука по умолчанию (SPEC §8.3).
+	//
+	// Отдельным флагом, а не через язык запросов: там условия соединяются
+	// только через И, а запрос из одних отрицаний он справедливо отвергает.
+	HideCompleted bool
 }
 
 // Search выполняет разобранный запрос.
@@ -27,6 +34,9 @@ func (ix *Index) Search(ctx context.Context, q Query, opts SearchOptions) ([]Rec
 	}
 	if !opts.IncludeTrashed {
 		where = append(where, "n.trashed = 0")
+	}
+	if opts.HideCompleted {
+		where = append(where, "n.status NOT IN ('completed', 'dropped')")
 	}
 
 	sqlText := `

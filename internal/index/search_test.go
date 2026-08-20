@@ -279,3 +279,29 @@ func TestSearchColumnFilterIsReal(t *testing.T) {
 		})
 	}
 }
+
+// Список ноутбука по умолчанию не показывает завершённое и брошенное
+// (SPEC §8.3). Через язык запросов это не выразить: там только И, а запрос из
+// одних отрицаний отвергается.
+func TestSearchHidesCompleted(t *testing.T) {
+	ix, _ := testIndex(t)
+	seed(t, ix)
+
+	q, _ := ParseQuery("")
+	got, err := ix.Search(context.Background(), q, SearchOptions{HideCompleted: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range got {
+		if r.Status == "completed" || r.Status == "dropped" {
+			t.Errorf("в выдаче %q со статусом %q", r.Title, r.Status)
+		}
+	}
+	if hasTitle(got, "Архив") {
+		t.Errorf("завершённая заметка осталась: %v", titles(got))
+	}
+	// Остальные на месте.
+	if !hasTitle(got, "Счётчик перерасчёта") || !hasTitle(got, "Покупки") {
+		t.Errorf("выдача = %v", titles(got))
+	}
+}
