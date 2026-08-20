@@ -7,13 +7,28 @@ import (
 	"time"
 )
 
+// Trash — как обходиться с корзиной.
+//
+// Перечислением, а не парой флагов: «включить» и «только» пересекаются, и их
+// сочетание пришлось бы объяснять словами вместо типа.
+type Trash int
+
+const (
+	// TrashHidden — корзины в выдаче нет. Так выглядит обычный поиск, и это
+	// значение по умолчанию: удалённое не должно всплывать само.
+	TrashHidden Trash = iota
+	// TrashIncluded — корзина наравне с живыми заметками.
+	TrashIncluded
+	// TrashOnly — только корзина: её собственный экран.
+	TrashOnly
+)
+
 // SearchOptions — то, что не относится к самому запросу.
 type SearchOptions struct {
 	// Limit ограничивает выдачу. Ноль — без ограничения.
 	Limit int
-	// IncludeTrashed добавляет к выдаче корзину. По умолчанию её нет: удалённое
-	// не должно всплывать в обычном поиске.
-	IncludeTrashed bool
+	// Trash решает судьбу удалённых заметок.
+	Trash Trash
 
 	// HideCompleted убирает завершённое и брошенное. Так выглядит список
 	// ноутбука по умолчанию (SPEC §8.3).
@@ -32,8 +47,11 @@ func (ix *Index) Search(ctx context.Context, q Query, opts SearchOptions) ([]Rec
 	if err != nil {
 		return nil, err
 	}
-	if !opts.IncludeTrashed {
+	switch opts.Trash {
+	case TrashHidden:
 		where = append(where, "n.trashed = 0")
+	case TrashOnly:
+		where = append(where, "n.trashed = 1")
 	}
 	if opts.HideCompleted {
 		where = append(where, "n.status NOT IN ('completed', 'dropped')")

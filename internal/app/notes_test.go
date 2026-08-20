@@ -195,3 +195,57 @@ func TestTasksAndHideCompleted(t *testing.T) {
 		t.Errorf("всего %d, ожидалось 5", len(all))
 	}
 }
+
+// Корзина целиком: удалить, увидеть в корзине, вернуть.
+func TestTrashRestoreCycle(t *testing.T) {
+	n := testNotes(t)
+	ctx := context.Background()
+
+	created, err := n.Create(ctx, "Ненужная", "Работа")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := n.Trash(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	trashed, err := n.Trashed(ctx, 50)
+	if err != nil {
+		t.Fatalf("Trashed: %v", err)
+	}
+	if len(trashed) != 1 || trashed[0].ID != created.ID {
+		t.Fatalf("в корзине %+v", trashed)
+	}
+	if live, err := n.Search(ctx, "", 50, false); err != nil || len(live) != 0 {
+		t.Errorf("удалённая видна в обычном списке: %+v, %v", live, err)
+	}
+
+	restored, err := n.Restore(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if restored.Trashed || restored.Notebook != "Работа" {
+		t.Errorf("восстановлено как %+v", restored)
+	}
+	if empty, err := n.Trashed(ctx, 50); err != nil || len(empty) != 0 {
+		t.Errorf("корзина не опустела: %+v, %v", empty, err)
+	}
+}
+
+func TestDeleteForever(t *testing.T) {
+	n := testNotes(t)
+	ctx := context.Background()
+	created, err := n.Create(ctx, "Насовсем", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := n.Trash(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := n.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if trashed, err := n.Trashed(ctx, 50); err != nil || len(trashed) != 0 {
+		t.Errorf("корзина = %+v, %v", trashed, err)
+	}
+}

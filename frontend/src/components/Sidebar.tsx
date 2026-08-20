@@ -4,7 +4,8 @@ export type Filter =
   | { kind: "active" }
   | { kind: "all" }
   | { kind: "notebook"; path: string }
-  | { kind: "tag"; name: string };
+  | { kind: "tag"; name: string }
+  | { kind: "trash" };
 
 type Props = {
   notebooks: Notebook[];
@@ -58,6 +59,15 @@ export function Sidebar({ notebooks, tags, filter, onFilter }: Props) {
           <span className="row__count">{tag.Count || ""}</span>
         </button>
       ))}
+
+      <div className="section-title">&nbsp;</div>
+      <button
+        className="row"
+        aria-selected={filter.kind === "trash"}
+        onClick={() => onFilter({ kind: "trash" })}
+      >
+        <span className="row__label">Корзина</span>
+      </button>
     </nav>
   );
 }

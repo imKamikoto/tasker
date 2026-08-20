@@ -164,3 +164,176 @@ func TestTrashFromRoot(t *testing.T) {
 		t.Errorf("trashedFrom = %q", from)
 	}
 }
+
+func TestRestore(t *testing.T) {
+	v, _ := testVault(t)
+
+	n, err := v.Create(NewNote{Title: "Вернётся", Body: "тело\n", Notebook: "Работа/Баги"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := n.Doc.Meta.ID()
+	original := n.Path
+	if err := v.Trash(n); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := v.Restore(n); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if n.Notebook != "Работа/Баги" {
+		t.Errorf("ноутбук = %q", n.Notebook)
+	}
+	if n.Path != original {
+		t.Errorf("путь = %q, ожидался %q", n.Path, original)
+	}
+
+	restored, err := v.Load(n.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Doc.Meta.ID() != id {
+		t.Errorf("id сменился")
+	}
+	if restored.Doc.Body != "тело\n" {
+		t.Errorf("тело = %q", restored.Doc.Body)
+	}
+	// Следы корзины должны исчезнуть.
+	for _, field := range []string{"trashedFrom", "trashedAt"} {
+		if ok, _ := restored.Doc.Meta.Get(field, new(string)); ok {
+			t.Errorf("поле %s осталось", field)
+		}
+	}
+}
+
+// Ноутбук успели удалить: он создаётся заново, и заметка возвращается ровно
+// туда, где была.
+func TestRestoreRecreatesMissingNotebook(t *testing.T) {
+	v, _ := testVault(t)
+	n, err := v.Create(NewNote{Title: "Сирота", Notebook: "Исчезнет"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Trash(n); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(v.Root(), "Исчезнет")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := v.Restore(n); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if n.Notebook != "Исчезнет" {
+		t.Errorf("ноутбук = %q, ожидался «Исчезнет» пересозданным", n.Notebook)
+	}
+	if _, err := os.Stat(n.Path); err != nil {
+		t.Fatalf("файла нет: %v", err)
+	}
+}
+
+// trashedFrom поправили руками так, что писать туда нельзя. Заметку всё равно
+// надо вернуть — в корень, но вернуть.
+func TestRestoreFallsBackToRootOnBadPath(t *testing.T) {
+	for _, bad := range []string{"../снаружи/note.md", ".git/note.md", "/etc/note.md"} {
+		t.Run(bad, func(t *testing.T) {
+			v, _ := testVault(t)
+			n, err := v.Create(NewNote{Title: "Заметка", Notebook: "Работа"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := v.Trash(n); err != nil {
+				t.Fatal(err)
+			}
+			if err := n.Doc.Meta.Set("trashedFrom", bad); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := v.Restore(n); err != nil {
+				t.Fatalf("Restore: %v", err)
+			}
+			if n.Notebook != "" {
+				t.Errorf("ноутбук = %q, ожидался корень", n.Notebook)
+			}
+			if filepath.Dir(n.Path) != v.Root() {
+				t.Errorf("файл не в корне: %s", n.Path)
+			}
+		})
+	}
+}
+
+// Имя в исходном ноутбуке успели занять, пока заметка лежала в корзине.
+func TestRestoreResolvesNameCollision(t *testing.T) {
+	v, _ := testVault(t)
+	first, err := v.Create(NewNote{Title: "Одинаковая", Notebook: "Работа", Body: "первая\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Trash(first); err != nil {
+		t.Fatal(err)
+	}
+	second, err := v.Create(NewNote{Title: "Одинаковая", Notebook: "Работа", Body: "вторая\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := v.Restore(first); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if filepath.Base(first.Path) == filepath.Base(second.Path) {
+		t.Fatalf("оба файла называются %q", filepath.Base(first.Path))
+	}
+	raw, err := os.ReadFile(second.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(raw), "вторая\n") {
+		t.Errorf("занявший файл затёрт:\n%s", raw)
+	}
+}
+
+func TestRestoreRejectsLiveNote(t *testing.T) {
+	v, _ := testVault(t)
+	n, err := v.Create(NewNote{Title: "Живая"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Restore(n); !errors.Is(err, ErrNotTrashed) {
+		t.Errorf("ошибка = %v, ожидалась ErrNotTrashed", err)
+	}
+}
+
+func TestDelete(t *testing.T) {
+	v, _ := testVault(t)
+	n, err := v.Create(NewNote{Title: "Насовсем"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := v.Trash(n); err != nil {
+		t.Fatal(err)
+	}
+
+	path := n.Path
+	if err := v.Delete(n); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("файл на месте: %v", err)
+	}
+}
+
+// Мимо корзины удалить нельзя: это единственная защита от необратимой ошибки.
+func TestDeleteRejectsLiveNote(t *testing.T) {
+	v, _ := testVault(t)
+	n, err := v.Create(NewNote{Title: "Живая", Body: "тело\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := v.Delete(n); !errors.Is(err, ErrNotTrashed) {
+		t.Errorf("ошибка = %v, ожидалась ErrNotTrashed", err)
+	}
+	if _, err := os.Stat(n.Path); err != nil {
+		t.Errorf("файл всё-таки удалён: %v", err)
+	}
+}

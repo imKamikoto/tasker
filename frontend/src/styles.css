@@ -318,3 +318,12 @@ body {
 .conflict button:hover {
   background: var(--color-oak-400);
 }
+
+/* Тело заметки в корзине: видно, но править нельзя. */
+.trashed-body {
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+}

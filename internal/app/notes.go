@@ -71,6 +71,22 @@ func (n *Notes) Trash(ctx context.Context, id string) error {
 	return n.service.Trash(ctx, id)
 }
 
+// Trashed возвращает содержимое корзины.
+func (n *Notes) Trashed(ctx context.Context, limit int) ([]notes.Note, error) {
+	return n.service.Search(ctx, "", notes.SearchOptions{Limit: limit, Trash: index.TrashOnly})
+}
+
+// Restore возвращает заметку из корзины туда, откуда она уехала.
+func (n *Notes) Restore(ctx context.Context, id string) (index.Record, error) {
+	return n.service.Restore(ctx, id)
+}
+
+// Delete удаляет заметку насовсем. Только из корзины и только отсюда: агенту
+// это не дано (docs/MCP.md §4).
+func (n *Notes) Delete(ctx context.Context, id string) error {
+	return n.service.Delete(ctx, id)
+}
+
 // Notebooks возвращает дерево ноутбуков со счётчиками.
 func (n *Notes) Notebooks(ctx context.Context) ([]index.Notebook, error) {
 	return n.service.Notebooks(ctx)

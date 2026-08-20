@@ -173,12 +173,12 @@ func TestSearchExcludesTrash(t *testing.T) {
 	}
 
 	q, _ := ParseQuery("Счётчик")
-	got, err := ix.Search(ctx, q, SearchOptions{IncludeTrashed: true})
+	got, err := ix.Search(ctx, q, SearchOptions{Trash: TrashIncluded})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !hasTitle(got, "Удалённая") {
-		t.Errorf("с IncludeTrashed корзина не вернулась: %v", titles(got))
+		t.Errorf("с TrashIncluded корзина не вернулась: %v", titles(got))
 	}
 }
 
@@ -303,5 +303,25 @@ func TestSearchHidesCompleted(t *testing.T) {
 	// Остальные на месте.
 	if !hasTitle(got, "Счётчик перерасчёта") || !hasTitle(got, "Покупки") {
 		t.Errorf("выдача = %v", titles(got))
+	}
+}
+
+// Экран корзины: только удалённые и ничего кроме.
+func TestSearchTrashOnly(t *testing.T) {
+	ix, _ := testIndex(t)
+	seed(t, ix)
+
+	q, _ := ParseQuery("")
+	got, err := ix.Search(context.Background(), q, SearchOptions{Trash: TrashOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Title != "Удалённая" {
+		t.Fatalf("выдача = %v, ожидалась только удалённая", titles(got))
+	}
+	for _, r := range got {
+		if !r.Trashed {
+			t.Errorf("живая заметка на экране корзины: %q", r.Title)
+		}
 	}
 }

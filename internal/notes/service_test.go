@@ -460,3 +460,116 @@ func TestSync(t *testing.T) {
 		t.Errorf("поиск = %+v", found)
 	}
 }
+
+func TestRestore(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	created, err := s.Create(ctx, CreateParams{Title: "Вернётся", Notebook: "Работа", Body: "тело\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Trash(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := s.Restore(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if restored.Trashed || restored.Notebook != "Работа" {
+		t.Errorf("запись = %+v", restored)
+	}
+	if restored.Path != created.Path {
+		t.Errorf("путь = %q, ожидался %q", restored.Path, created.Path)
+	}
+
+	// В индексе не должно остаться призрака по старому пути.
+	states, err := s.Index().States(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(states) != 1 {
+		t.Errorf("путей в индексе %d: %v", len(states), states)
+	}
+
+	// И заметка снова находится обычным поиском.
+	found, err := s.Search(ctx, "", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 {
+		t.Errorf("поиск нашёл %d", len(found))
+	}
+}
+
+func TestDeleteForever(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	created, err := s.Create(ctx, CreateParams{Title: "Насовсем"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Trash(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	trashed, err := s.Index().Get(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(trashed.Path))); !os.IsNotExist(err) {
+		t.Errorf("файл на месте: %v", err)
+	}
+	if _, err := s.Index().Get(ctx, created.ID); !errors.Is(err, index.ErrNotFound) {
+		t.Errorf("строка индекса осталась: %v", err)
+	}
+	// История помнит: вернуть можно только оттуда.
+	if !strings.Contains(gitLog(t, root), "Насовсем") {
+		t.Errorf("в истории нет следа:\n%s", gitLog(t, root))
+	}
+}
+
+// Живую заметку насовсем удалить нельзя — только через корзину.
+func TestDeleteRejectsLiveNote(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	created, err := s.Create(ctx, CreateParams{Title: "Живая"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Delete(ctx, created.ID); !errors.Is(err, vault.ErrNotTrashed) {
+		t.Errorf("ошибка = %v, ожидалась ErrNotTrashed", err)
+	}
+}
+
+// Экран корзины показывает только удалённое.
+func TestSearchTrashOnly(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	live, err := s.Create(ctx, CreateParams{Title: "Живая"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone, err := s.Create(ctx, CreateParams{Title: "Удалённая"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Trash(ctx, gone.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	found, err := s.Search(ctx, "", SearchOptions{Trash: index.TrashOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 || found[0].ID != gone.ID {
+		t.Errorf("на экране корзины %+v", found)
+	}
+	_ = live
+}

@@ -19,6 +19,9 @@ export const api = {
   search: (query: string, limit: number, hideCompleted: boolean) =>
     Notes.Search(query, limit, hideCompleted).then(nonNull),
   tasks: (limit: number) => Notes.Tasks(limit).then(nonNull),
+  trashed: (limit: number) => Notes.Trashed(limit).then(nonNull),
+  restore: (id: string) => Notes.Restore(id),
+  deleteForever: (id: string) => Notes.Delete(id),
   get: (id: string) => Notes.Get(id),
   notebooks: () => Notes.Notebooks().then(nonNull),
   tags: () => Notes.Tags().then(nonNull),

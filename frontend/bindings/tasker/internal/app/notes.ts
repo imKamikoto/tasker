@@ -29,6 +29,14 @@ export function Create(title: string, notebook: string): $CancellablePromise<ind
 }
 
 /**
+ * Delete удаляет заметку насовсем. Только из корзины и только отсюда: агенту
+ * это не дано (docs/MCP.md §4).
+ */
+export function Delete(id: string): $CancellablePromise<void> {
+    return $Call.ByID(3028446315, id);
+}
+
+/**
  * Get читает заметку целиком: тело, исходящие ссылки и бэклинки.
  */
 export function Get(id: string): $CancellablePromise<notes$0.Note> {
@@ -40,6 +48,13 @@ export function Get(id: string): $CancellablePromise<notes$0.Note> {
  */
 export function Notebooks(): $CancellablePromise<index$0.Notebook[] | null> {
     return $Call.ByID(1054013206);
+}
+
+/**
+ * Restore возвращает заметку из корзины туда, откуда она уехала.
+ */
+export function Restore(id: string): $CancellablePromise<index$0.Record> {
+    return $Call.ByID(3499809458, id);
 }
 
 /**
@@ -92,4 +107,11 @@ export function Tasks(limit: number): $CancellablePromise<notes$0.Note[] | null>
  */
 export function Trash(id: string): $CancellablePromise<void> {
     return $Call.ByID(1638432474, id);
+}
+
+/**
+ * Trashed возвращает содержимое корзины.
+ */
+export function Trashed(limit: number): $CancellablePromise<notes$0.Note[] | null> {
+    return $Call.ByID(3456183915, limit);
 }

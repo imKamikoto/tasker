@@ -81,7 +81,15 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if query == "" {
 		return nil
 	}
-	return doSearch(ctx, ix, q, index.SearchOptions{Limit: *limit, IncludeTrashed: *trashed}, stdout)
+	return doSearch(ctx, ix, q, index.SearchOptions{Limit: *limit, Trash: trashMode(*trashed)}, stdout)
+}
+
+// trashMode переводит флаг командной строки в режим показа корзины.
+func trashMode(includeTrashed bool) index.Trash {
+	if includeTrashed {
+		return index.TrashIncluded
+	}
+	return index.TrashHidden
 }
 
 // openIndex открывает индекс в служебном каталоге vault (SPEC §4.1).

@@ -73,7 +73,9 @@ export default function App() {
     const request =
       filter.kind === "active"
         ? api.tasks(pageSize)
-        : api.search(search, pageSize, !query.includes("status:"));
+        : filter.kind === "trash"
+          ? api.trashed(pageSize)
+          : api.search(search, pageSize, !query.includes("status:"));
 
     request
       .then((found) => {
@@ -121,6 +123,17 @@ export default function App() {
     ];
     return () => off.forEach((unsubscribe) => unsubscribe());
   }, [selected]);
+
+  // Обе операции корзины меняют список целиком: заметка либо уезжает обратно,
+  // либо исчезает навсегда.
+  const act = useCallback((operation: Promise<unknown>) => {
+    operation
+      .then(() => {
+        setSelected(null);
+        setRevision((n) => n + 1);
+      })
+      .catch((err) => setNoteError(describeError(err)));
+  }, []);
 
   const onFilter = useCallback((next: Filter) => {
     setFilter(next);
@@ -214,7 +227,21 @@ export default function App() {
           <div className="empty">Выберите заметку слева</div>
         </div>
       )}
-      {!noteError && note && (
+      {!noteError && note && filter.kind === "trash" && (
+        <div className="pane pane--editor">
+          <input className="editor__title" value={note.Title} readOnly />
+          <div className="editor__meta">
+            <span className="editor__state">в корзине</span>
+          </div>
+          <div className="conflict">
+            <span>Заметка удалена. Править её нельзя, пока она в корзине.</span>
+            <button onClick={() => act(api.restore(note.ID))}>Восстановить</button>
+            <button onClick={() => act(api.deleteForever(note.ID))}>Удалить насовсем</button>
+          </div>
+          <div className="editor__body trashed-body">{note.Body}</div>
+        </div>
+      )}
+      {!noteError && note && filter.kind !== "trash" && (
         // key по id: переключение заметки пересоздаёт редактор целиком, вместо
         // того чтобы подменять документ и сбрасывать состояние вима руками.
         <Editor

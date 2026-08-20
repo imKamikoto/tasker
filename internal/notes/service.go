@@ -332,6 +332,73 @@ func (s *Service) Trash(ctx context.Context, id string) error {
 	return s.commit(ctx, "trash", rec.Title)
 }
 
+// Restore возвращает заметку из корзины туда, откуда она уехала.
+func (s *Service) Restore(ctx context.Context, id string) (index.Record, error) {
+	return s.fromTrash(ctx, id, "restore", func(n *vault.Note) error { return s.vault.Restore(n) })
+}
+
+// Delete удаляет заметку насовсем.
+//
+// Только из корзины и только отсюда: агенту это не дано вовсе (docs/MCP.md §4),
+// а вернуть после этого можно лишь из истории git.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	release, err := s.lock.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	rec, err := s.index.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	n, err := s.loadByPath(rec.Path)
+	if err != nil {
+		return err
+	}
+	if err := s.vault.Delete(n); err != nil {
+		return err
+	}
+	if err := s.index.Delete(ctx, rec.Path); err != nil {
+		return err
+	}
+	return s.commit(ctx, "delete", rec.Title)
+}
+
+// fromTrash — общая обвязка для операций над заметкой в корзине.
+func (s *Service) fromTrash(
+	ctx context.Context, id, action string, apply func(*vault.Note) error,
+) (index.Record, error) {
+	release, err := s.lock.acquire(ctx)
+	if err != nil {
+		return index.Record{}, err
+	}
+	defer release()
+
+	rec, err := s.index.Get(ctx, id)
+	if err != nil {
+		return index.Record{}, err
+	}
+	n, err := s.loadByPath(rec.Path)
+	if err != nil {
+		return index.Record{}, err
+	}
+	if err := apply(n); err != nil {
+		return index.Record{}, err
+	}
+
+	// Путь заметки изменился, но убирать старую строку не нужно: Put находит
+	// её по id и переносит на новый путь той же записью.
+	updated, err := s.reindex(ctx, n)
+	if err != nil {
+		return index.Record{}, err
+	}
+	if err := s.commit(ctx, action, updated.Title); err != nil {
+		return index.Record{}, err
+	}
+	return updated, nil
+}
+
 // Note — заметка целиком: строка индекса, тело и связи.
 type Note struct {
 	index.Record
@@ -366,10 +433,10 @@ func (s *Service) Get(ctx context.Context, id string) (Note, error) {
 
 // SearchOptions — что вернуть кроме самих записей.
 type SearchOptions struct {
-	Limit          int
-	IncludeBody    bool
-	IncludeTrashed bool
-	HideCompleted  bool
+	Limit         int
+	IncludeBody   bool
+	Trash         index.Trash
+	HideCompleted bool
 }
 
 // Search выполняет запрос на языке из SPEC §8.5.
@@ -379,9 +446,9 @@ func (s *Service) Search(ctx context.Context, query string, opts SearchOptions) 
 		return nil, err
 	}
 	records, err := s.index.Search(ctx, q, index.SearchOptions{
-		Limit:          opts.Limit,
-		IncludeTrashed: opts.IncludeTrashed,
-		HideCompleted:  opts.HideCompleted,
+		Limit:         opts.Limit,
+		Trash:         opts.Trash,
+		HideCompleted: opts.HideCompleted,
 	})
 	if err != nil {
 		return nil, err
