@@ -484,3 +484,32 @@ func TestScanErrorWrapsCause(t *testing.T) {
 		t.Errorf("текст ошибки = %q: в нём должны быть и путь, и причина", msg)
 	}
 }
+
+// Скан обязан сообщать, сколько файлов он дописал: это единственное, чем он
+// меняет vault, и узнавать об этом из git-диффа — плохой способ.
+func TestScanCountsBackfilled(t *testing.T) {
+	ix, v, root := testScan(t)
+	ctx := context.Background()
+
+	writeFile(t, root, "без-заголовка-раз.md", "тело\n")
+	writeFile(t, root, "без-заголовка-два.md", "тело\n")
+	// Действительно полная: id, title и обе даты на месте, дописывать нечего.
+	writeFile(t, root, "полная.md", "---\nid: "+vault.NewID()+"\ntitle: Полная\n"+
+		"created: 2026-08-01T10:00:00+03:00\nupdated: 2026-08-01T10:00:00+03:00\n---\nтело\n")
+
+	res, err := ix.Scan(ctx, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Backfilled != 2 {
+		t.Errorf("дописано %d, ожидалось 2 (%+v)", res.Backfilled, res)
+	}
+
+	res2, err := ix.Scan(ctx, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Backfilled != 0 {
+		t.Errorf("повторный скан дописал %d — должен был ничего не делать", res2.Backfilled)
+	}
+}

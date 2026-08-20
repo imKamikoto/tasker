@@ -28,6 +28,10 @@ type ScanResult struct {
 	Removed   int
 	Unchanged int
 
+	// Backfilled — сколько заметок скан дописал на диске. Это единственное, чем
+	// он меняет vault, и молчать об этом нельзя.
+	Backfilled int
+
 	// Failed — заметки, которые не удалось проиндексировать. Одна заметка со
 	// сломанным заголовком не должна оставлять пользователя без индекса, поэтому
 	// скан их собирает и идёт дальше.
@@ -102,10 +106,13 @@ func (ix *Index) Scan(ctx context.Context, v *vault.Vault) (ScanResult, error) {
 			return nil
 		}
 
-		r, err := readRecord(v, p)
+		r, filled, err := readRecord(v, p)
 		if err != nil {
 			res.Failed = append(res.Failed, ScanError{Path: rel, Err: err})
 			return nil
+		}
+		if filled {
+			res.Backfilled++
 		}
 		if other, dup := seen[r.ID]; dup {
 			res.Failed = append(res.Failed, ScanError{
@@ -152,22 +159,23 @@ func (ix *Index) Scan(ctx context.Context, v *vault.Vault) (ScanResult, error) {
 // Файлу, попавшему в vault снаружи, по дороге дописывается frontmatter: скан и
 // есть то самое «первое открытие» из SPEC §4.1, а без id заметку нельзя ни
 // положить в индекс, ни сослаться на неё.
-func readRecord(v *vault.Vault, abs string) (Record, error) {
+func readRecord(v *vault.Vault, abs string) (Record, bool, error) {
 	n, err := v.Load(abs)
 	if err != nil {
-		return Record{}, err
+		return Record{}, false, err
 	}
-	if _, err := v.Backfill(n); err != nil {
-		return Record{}, err
+	filled, err := v.Backfill(n)
+	if err != nil {
+		return Record{}, false, err
 	}
 	r, err := RecordFrom(n)
 	if err != nil {
-		return Record{}, err
+		return Record{}, filled, err
 	}
 	// Backfill не трогает id, который уже есть, даже негодный: мы не знаем, чем
 	// он был и кто на него ссылается. Такую заметку остаётся только показать.
 	if !vault.ValidID(r.ID) {
-		return Record{}, ErrMissingID
+		return Record{}, filled, ErrMissingID
 	}
-	return r, nil
+	return r, filled, nil
 }
