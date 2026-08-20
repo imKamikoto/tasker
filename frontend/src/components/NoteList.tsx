@@ -114,6 +114,10 @@ export function NoteList({
           className="note"
           aria-selected={note.ID === selected}
           onClick={() => onSelect(note.ID)}
+          draggable
+          // Тащим идентификатор: ноутбук на той стороне сам решит, что с ним
+          // делать, и знать о списке ему не нужно.
+          onDragStart={(event) => event.dataTransfer.setData("text/tasker-note", note.ID)}
         >
           <div className="note__title">
             {note.Pinned && <span className="pin">★</span>}

@@ -92,6 +92,11 @@ func (n *Notes) Trash(ctx context.Context, id string) error {
 	return n.service.Trash(ctx, id)
 }
 
+// Move переносит заметку в другой ноутбук. Пустая строка — корень vault.
+func (n *Notes) Move(ctx context.Context, id, notebook string) (index.Record, error) {
+	return n.service.Update(ctx, notes.UpdateParams{ID: id, Notebook: &notebook})
+}
+
 // SetPinned закрепляет заметку или снимает закрепление.
 func (n *Notes) SetPinned(ctx context.Context, id string, pinned bool) (index.Record, error) {
 	return n.service.SetPinned(ctx, id, pinned)

@@ -404,3 +404,44 @@ button.row__label {
   word-break: break-word;
   overflow-y: auto;
 }
+
+/* Выбор ноутбука для переноса. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  background: hsl(var(--hsl-bg-shadow) / 0.6);
+  z-index: 10;
+}
+
+.picker {
+  width: min(420px, 80vw);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 12px 32px hsl(var(--hsl-bg-shadow) / 0.7);
+}
+
+.picker__input {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+}
+
+.picker__input:focus {
+  outline: none;
+}
+
+.picker__list {
+  overflow-y: auto;
+}

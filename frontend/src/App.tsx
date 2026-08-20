@@ -16,6 +16,7 @@ import { NoteList } from "./components/NoteList";
 import { Sidebar, type Filter } from "./components/Sidebar";
 import { defaultSettings } from "./settings";
 import { statusForKey } from "./statuses";
+import { MovePicker } from "./components/MovePicker";
 import { Splitter } from "./components/Splitter";
 
 /** Сколько заметок просим за раз. Виртуализация списка — задача фазы 4. */
@@ -52,6 +53,9 @@ export default function App() {
   // Просьба передать фокус в редактор. Число, а не флаг: Enter, нажатый дважды,
   // должен сработать оба раза.
   const [focusToken, setFocusToken] = useState(0);
+
+  // Открыт ли выбор ноутбука для переноса (клавиша m).
+  const [moving, setMoving] = useState(false);
 
   // Запрос собирается здесь, а не в Go, только потому что это склейка строки из
   // того, что человек уже выбрал. Разбирает и исполняет его всё равно Go.
@@ -249,6 +253,13 @@ export default function App() {
             setFocusToken((n) => n + 1);
           }
           return;
+        case "m":
+          // Перенос в другой ноутбук: выбор открывается поверх списка.
+          if (selected) {
+            event.preventDefault();
+            setMoving(true);
+          }
+          return;
         case "p":
           if (selected) {
             event.preventDefault();
@@ -270,12 +281,24 @@ export default function App() {
         gridTemplateColumns: `${settings.sidebarWidth}px 1px ${settings.listWidth}px 1px 1fr`,
       }}
     >
+      {moving && selected && (
+        <MovePicker
+          notebooks={notebooks.map((notebook) => notebook.Path)}
+          onCancel={() => setMoving(false)}
+          onPick={(notebook) => {
+            setMoving(false);
+            act(api.move(selected, notebook), true);
+          }}
+        />
+      )}
+
       <Sidebar
         notebooks={notebooks}
         tags={tags}
         filter={filter}
         onFilter={onFilter}
         collapsed={settings.collapsed}
+        onDropNote={(id, notebook) => act(api.move(id, notebook), true)}
         onToggle={(path) =>
           setSettings((current) => ({
             ...current,

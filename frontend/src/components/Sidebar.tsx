@@ -15,10 +15,19 @@ type Props = {
   onFilter: (filter: Filter) => void;
   collapsed: string[];
   onToggle: (path: string) => void;
+  onDropNote: (id: string, notebook: string) => void;
 };
 
 /** Sidebar рисует то, что ему дали: дерево ноутбуков и список тегов. */
-export function Sidebar({ notebooks, tags, filter, onFilter, collapsed, onToggle }: Props) {
+export function Sidebar({
+  notebooks,
+  tags,
+  filter,
+  onFilter,
+  collapsed,
+  onToggle,
+  onDropNote,
+}: Props) {
   const rows = notebookRows(
     notebooks.map((notebook) => ({ path: notebook.Path, count: notebook.Count })),
     collapsed,
@@ -49,6 +58,18 @@ export function Sidebar({ notebooks, tags, filter, onFilter, collapsed, onToggle
           className="row"
           aria-selected={filter.kind === "notebook" && filter.path === row.path}
           style={{ paddingLeft: 16 + row.depth * 14 }}
+          // preventDefault на dragOver — единственный способ сказать браузеру,
+          // что сюда можно бросать. Без него drop не случится вовсе.
+          onDragOver={(event) => {
+            if (event.dataTransfer.types.includes("text/tasker-note")) event.preventDefault();
+          }}
+          onDrop={(event) => {
+            const id = event.dataTransfer.getData("text/tasker-note");
+            if (id) {
+              event.preventDefault();
+              onDropNote(id, row.path);
+            }
+          }}
         >
           {/* Треугольник отдельной кнопкой: свернуть ветку и выбрать её —
               разные действия, и путать их щелчком по одному месту нельзя. */}

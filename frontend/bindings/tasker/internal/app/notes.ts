@@ -51,6 +51,13 @@ export function Get(id: string): $CancellablePromise<notes$0.Note> {
 }
 
 /**
+ * Move переносит заметку в другой ноутбук. Пустая строка — корень vault.
+ */
+export function Move(id: string, notebook: string): $CancellablePromise<index$0.Record> {
+    return $Call.ByID(2195879325, id, notebook);
+}
+
+/**
  * Notebooks возвращает дерево ноутбуков со счётчиками.
  */
 export function Notebooks(): $CancellablePromise<index$0.Notebook[] | null> {

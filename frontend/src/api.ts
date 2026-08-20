@@ -25,6 +25,7 @@ export const api = {
   restore: (id: string) => Notes.Restore(id),
   setPinned: (id: string, pinned: boolean) => Notes.SetPinned(id, pinned),
   duplicate: (id: string) => Notes.Duplicate(id),
+  move: (id: string, notebook: string) => Notes.Move(id, notebook),
   deleteForever: (id: string) => Notes.Delete(id),
   get: (id: string) => Notes.Get(id),
   notebooks: () => Notes.Notebooks().then(nonNull),

@@ -249,3 +249,34 @@ func TestDeleteForever(t *testing.T) {
 		t.Errorf("корзина = %+v, %v", trashed, err)
 	}
 }
+
+func TestMove(t *testing.T) {
+	n := testNotes(t)
+	ctx := context.Background()
+
+	created, err := n.Create(ctx, "Переезжающая", "Работа")
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved, err := n.Move(ctx, created.ID, "Личное/Идеи")
+	if err != nil {
+		t.Fatalf("Move: %v", err)
+	}
+	if moved.Notebook != "Личное/Идеи" || moved.ID != created.ID {
+		t.Errorf("запись = %+v", moved)
+	}
+
+	// И в корень.
+	back, err := n.Move(ctx, created.ID, "")
+	if err != nil {
+		t.Fatalf("Move в корень: %v", err)
+	}
+	if back.Notebook != "" {
+		t.Errorf("ноутбук = %q", back.Notebook)
+	}
+
+	// Ноутбук за пределами vault не принимается.
+	if _, err := n.Move(ctx, created.ID, "../снаружи"); !errors.Is(err, vault.ErrOutsideVault) {
+		t.Errorf("ошибка = %v, ожидалась ErrOutsideVault", err)
+	}
+}
