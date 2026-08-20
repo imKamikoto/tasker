@@ -270,7 +270,21 @@ export default function App() {
         gridTemplateColumns: `${settings.sidebarWidth}px 1px ${settings.listWidth}px 1px 1fr`,
       }}
     >
-      <Sidebar notebooks={notebooks} tags={tags} filter={filter} onFilter={onFilter} />
+      <Sidebar
+        notebooks={notebooks}
+        tags={tags}
+        filter={filter}
+        onFilter={onFilter}
+        collapsed={settings.collapsed}
+        onToggle={(path) =>
+          setSettings((current) => ({
+            ...current,
+            collapsed: current.collapsed.includes(path)
+              ? current.collapsed.filter((item) => item !== path)
+              : [...current.collapsed, path],
+          }))
+        }
+      />
       <Splitter
         width={settings.sidebarWidth}
         min={160}

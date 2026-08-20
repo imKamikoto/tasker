@@ -173,8 +173,37 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.row--nested {
-  padding-left: 32px;
+/* Треугольник сворачивания: место занимает всегда, чтобы подписи стояли
+   ровным столбцом независимо от наличия детей. */
+.row__twisty {
+  width: 12px;
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-fg-muted);
+  font-size: 9px;
+  line-height: 1;
+  cursor: default;
+}
+
+.row__twisty:disabled {
+  visibility: hidden;
+}
+
+.row__twisty:hover:not(:disabled) {
+  color: var(--color-oak-600);
+}
+
+/* Подпись — кнопка выбора ноутбука, поэтому сбрасываем вид кнопки. */
+button.row__label {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
 }
 
 .note {
