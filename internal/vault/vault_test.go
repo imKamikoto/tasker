@@ -497,3 +497,35 @@ func TestVaultSaveRefreshesFrontmatterBytes(t *testing.T) {
 		t.Errorf("Doc.Bytes() = %q", got)
 	}
 }
+
+// Тело новой заметки завершается переводом строки: без него git пишет
+// «\ No newline at end of file» в каждом диффе.
+func TestCreateEndsBodyWithNewline(t *testing.T) {
+	v, _ := testVault(t)
+
+	cases := map[string]string{
+		"без перевода":    "тело без перевода",
+		"с переводом":     "тело с переводом\n",
+		"пустое":          "",
+		"много переводов": "тело\n\n\n",
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			n, err := v.Create(NewNote{Title: "Заметка " + name, Body: body})
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := os.ReadFile(n.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasSuffix(string(raw), "\n") {
+				t.Errorf("файл не заканчивается переводом строки:\n%q", raw)
+			}
+			// Уже имевшиеся переводы не схлопываются: тело — это то, что прислали.
+			if body != "" && strings.HasSuffix(body, "\n") && !strings.HasSuffix(string(raw), body) {
+				t.Errorf("тело изменено: %q не оканчивается на %q", raw, body)
+			}
+		})
+	}
+}

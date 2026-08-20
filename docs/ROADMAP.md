@@ -47,13 +47,13 @@
 **Специально рано.** Зависит только от фазы 1, UI не нужен вообще. После этой фазы главный сценарий уже работает.
 
 - [x] `internal/notes` — слой операций, общий для приложения и MCP: файл, индекс и коммит обновляются вместе. Внутри межпроцессная блокировка на `flock`: приложение и `tasker-mcp` — разные процессы, и одновременный `git commit` упирается в `index.lock`
-- [ ] `cmd/tasker-mcp` на официальном `modelcontextprotocol/go-sdk`, stdio, флаг `--vault`
-- [ ] Инструменты: `search_notes`, `get_note`, `create_note`, `update_note`, `set_status`, `list_tasks`, `list_notebooks`, `list_tags`, `trash_note`
-- [ ] Указатели в параметрах обновления — отличать «не передано» от нуля
-- [ ] Проверка выхода за пределы vault через `filepath.EvalSymlinks`
-- [ ] Пометка `origin: agent`, заполнение `context`
-- [ ] Skill `tasker-notes` в `~/.claude/skills/`
-- [ ] Шаги 1–4 сценария приёмки из MCP.md §6
+- [x] `cmd/tasker-mcp` на официальном `modelcontextprotocol/go-sdk` v1.7.0, stdio, флаг `--vault`
+- [x] Инструменты: `search_notes`, `get_note`, `create_note`, `update_note`, `set_status`, `list_tasks`, `list_notebooks`, `list_tags`, `trash_note` — схемы выведены SDK из структур, руками не писались
+- [x] Указатели в параметрах обновления — отличать «не передано» от нуля
+- [x] Проверка выхода за пределы vault через `filepath.EvalSymlinks` — в `internal/vault` и `internal/gitstore`
+- [x] Пометка `origin: agent`, заполнение `context`
+- [~] Skill `tasker-notes` — лежит в `skills/tasker-notes/SKILL.md`, установить копированием в `~/.claude/skills/`
+- [x] Шаги 1–4 сценария приёмки из MCP.md §6 — сквозной тест `TestAcceptanceScenario` плюс ручной прогон бинарника по настоящему stdio
 
 **Готово, когда:** «заведи задачу» из Claude Code создаёт файл в vault с корректным frontmatter и git-коммитом. Читать заметки пока можно через `bat` или сам Claude Code — и этого какое-то время достаточно.
 

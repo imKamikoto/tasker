@@ -254,7 +254,13 @@ func buildDocument(id, title string, n NewNote, now time.Time) (*Document, error
 		}
 	}
 
+	// Тело новой заметки завершается переводом строки. Пришло оно из MCP или
+	// из UI — неважно: файл без него git показывает как «\ No newline at end
+	// of file» в каждом диффе. Уже существующие файлы это не трогает.
 	doc.Body = n.Body
+	if doc.Body != "" && !strings.HasSuffix(doc.Body, "\n") {
+		doc.Body += "\n"
+	}
 	return doc, nil
 }
 
