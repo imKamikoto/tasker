@@ -28,10 +28,22 @@ export function addTag(current: string[], tag: string): string[] {
   return [...current, clean];
 }
 
-/** Цвет тега по имени: пока постоянный, из палитры на 14 значений (SPEC §8.2). */
+/** Сколько цветов в палитре (SPEC §8.2). Совпадает с TagPalette в Go. */
 export const tagPalette = 14;
 
-export function tagColor(tag: string): number {
+/** «Цвет не выбран»: тогда он выводится из имени. Совпадает с AutoColor в Go. */
+export const autoColor = -1;
+
+/**
+ * tagColor возвращает цвет тега.
+ *
+ * Выбранный вручную побеждает; если его нет, цвет выводится из имени — так у
+ * тега всегда есть постоянный оттенок, даже когда его никто не выбирал.
+ */
+export function tagColor(tag: string, chosen?: Record<string, number>): number {
+  const picked = chosen?.[tag];
+  if (picked !== undefined && picked >= 0 && picked < tagPalette) return picked;
+
   let hash = 0;
   for (const char of tag) hash = (hash * 31 + char.codePointAt(0)!) % 100003;
   return hash % tagPalette;

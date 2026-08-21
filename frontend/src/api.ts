@@ -26,6 +26,7 @@ export const api = {
   setPinned: (id: string, pinned: boolean) => Notes.SetPinned(id, pinned),
   setTags: (id: string, tags: string[]) => Notes.SetTags(id, tags),
   renameTag: (from: string, to: string) => Notes.RenameTag(from, to),
+  setTagColor: (name: string, color: number) => Notes.SetTagColor(name, color),
   duplicate: (id: string) => Notes.Duplicate(id),
   move: (id: string, notebook: string) => Notes.Move(id, notebook),
 

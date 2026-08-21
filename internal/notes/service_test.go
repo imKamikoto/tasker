@@ -999,3 +999,133 @@ func TestSetTags(t *testing.T) {
 		t.Errorf("теги = %v, ожидались два", cleaned.Tags)
 	}
 }
+
+func TestTagColors(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, CreateParams{Title: "Заметка", Tags: []string{"баг", "работа"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.SetTagColor(ctx, "баг", 5); err != nil {
+		t.Fatalf("SetTagColor: %v", err)
+	}
+	if got := s.TagColors()["баг"]; got != 5 {
+		t.Errorf("цвет = %d", got)
+	}
+
+	// Файл лежит рядом с заметками, а не внутри индекса.
+	if _, err := os.Stat(filepath.Join(root, ".tasker", "tags.json")); err != nil {
+		t.Errorf("файла цветов нет: %v", err)
+	}
+
+	tags, err := s.Tags(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]string{}
+	for _, tag := range tags {
+		byName[tag.Name] = tag.Color
+	}
+	if byName["баг"] != "5" {
+		t.Errorf("в индексе цвет = %q", byName["баг"])
+	}
+	if byName["работа"] != "default" {
+		t.Errorf("нетронутый тег получил цвет %q", byName["работа"])
+	}
+
+	// Снятие цвета возвращает тег к автоматическому.
+	if err := s.SetTagColor(ctx, "баг", AutoColor); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.TagColors()["баг"]; ok {
+		t.Error("цвет остался в файле после снятия")
+	}
+	// И в индексе тоже: сброс должен доехать туда, а не остаться от прошлого
+	// применения.
+	after, err := s.Tags(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range after {
+		if tag.Color != "default" {
+			t.Errorf("в индексе тег %q остался с цветом %q", tag.Name, tag.Color)
+		}
+	}
+}
+
+// Главное, ради чего цвета вынесены в файл: они переживают пересборку индекса.
+func TestTagColorsSurviveIndexRebuild(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, CreateParams{Title: "Заметка", Tags: []string{"баг"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetTagColor(ctx, "баг", 9); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Сносим индекс целиком — ровно то, что делает смена версии схемы.
+	if err := os.Remove(filepath.Join(root, ".tasker", "index.sqlite")); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(ctx, root, Options{Origin: vault.OriginUser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	if _, err := reopened.Sync(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	tags, err := reopened.Tags(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 1 || tags[0].Color != "9" {
+		t.Errorf("после пересборки теги = %+v", tags)
+	}
+}
+
+func TestTagColorsRejectOutsidePalette(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	for _, color := range []int{TagPalette, TagPalette + 5, -2} {
+		if err := s.SetTagColor(ctx, "баг", color); !errors.Is(err, ErrBadColor) {
+			t.Errorf("цвет %d: ошибка = %v", color, err)
+		}
+	}
+}
+
+// Испорченный файл не должен ронять запуск и стирать уцелевшее.
+func TestTagColorsSurviveCorruptFile(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	path := filepath.Join(root, ".tasker", "tags.json")
+	if err := os.WriteFile(path, []byte(`{"colors":{"баг":5,"плохой":99,"":3}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	colors := s.TagColors()
+	if colors["баг"] != 5 {
+		t.Errorf("годный цвет потерян: %v", colors)
+	}
+	if _, ok := colors["плохой"]; ok {
+		t.Error("цвет вне палитры принят")
+	}
+	if _, ok := colors[""]; ok {
+		t.Error("пустое имя принято")
+	}
+
+	if err := os.WriteFile(path, []byte("не json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.TagColors()) != 0 {
+		t.Error("из битого файла что-то прочиталось")
+	}
+	if err := s.SetTagColor(context.Background(), "баг", 1); err != nil {
+		t.Errorf("запись поверх битого файла: %v", err)
+	}
+}

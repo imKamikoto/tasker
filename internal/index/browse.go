@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -170,4 +171,29 @@ func (ix *Index) Backlinks(ctx context.Context, id string) ([]Record, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// ApplyTagColors проставляет тегам цвета, выбранные пользователем.
+//
+// Индекс их не хранит между пересборками — источник правды это файл рядом с
+// заметками, — но держит у себя, чтобы list_tags отвечал одним запросом.
+func (ix *Index) ApplyTagColors(ctx context.Context, colors map[string]int) error {
+	tx, err := ix.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("apply tag colors: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Сначала сбрасываем всё: снятый цвет должен исчезнуть, а не остаться от
+	// прошлого применения.
+	if _, err := tx.ExecContext(ctx, `UPDATE tags SET color = 'default'`); err != nil {
+		return fmt.Errorf("apply tag colors: %w", err)
+	}
+	for name, color := range colors {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE tags SET color = ? WHERE name = ?`, strconv.Itoa(color), name); err != nil {
+			return fmt.Errorf("apply tag colors: %w", err)
+		}
+	}
+	return tx.Commit()
 }

@@ -125,6 +125,13 @@ export function SetStatusMany(ids: string[] | null, status: string): $Cancellabl
 }
 
 /**
+ * SetTagColor выбирает цвет тега из палитры; -1 снимает выбор.
+ */
+export function SetTagColor(name: string, color: number): $CancellablePromise<void> {
+    return $Call.ByID(2272116631, name, color);
+}
+
+/**
  * SetTags заменяет теги заметки целиком: поле под заголовком правится так.
  */
 export function SetTags(id: string, tags: string[] | null): $CancellablePromise<index$0.Record> {

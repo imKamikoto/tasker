@@ -1,11 +1,14 @@
 import { useState } from "react";
 
-import { addTag, suggestTags, tagColor } from "../tags";
+import { addTag, autoColor, suggestTags, tagColor, tagPalette } from "../tags";
 
 type Props = {
   tags: string[];
   known: string[];
   onChange: (tags: string[]) => void;
+  /** Выбранные вручную цвета: имя тега → номер в палитре. */
+  colors: Record<string, number>;
+  onColor: (tag: string, color: number) => void;
 };
 
 /**
@@ -14,9 +17,10 @@ type Props = {
  * Набор правится целиком: добавили или убрали — наружу уходит новый список, а
  * не разница. Вычислять разницу должен тот, кто пишет файл, а не поле ввода.
  */
-export function TagField({ tags, known, onChange }: Props) {
+export function TagField({ tags, known, onChange, colors, onColor }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [painting, setPainting] = useState<string | null>(null);
 
   const suggestions = suggestTags(known, tags, query);
 
@@ -31,8 +35,12 @@ export function TagField({ tags, known, onChange }: Props) {
   return (
     <div className="tagfield">
       {tags.map((tag) => (
-        <span key={tag} className="chip" data-color={tagColor(tag)}>
-          #{tag}
+        <span key={tag} className="chip" data-color={tagColor(tag, colors)}>
+          {/* Щелчок по имени открывает палитру: отдельной кнопки «цвет» нет,
+              а само имя ничего другого не делает. */}
+          <button className="chip__name" onClick={() => setPainting(painting === tag ? null : tag)}>
+            #{tag}
+          </button>
           <button
             className="chip__remove"
             aria-label={`убрать ${tag}`}
@@ -40,6 +48,32 @@ export function TagField({ tags, known, onChange }: Props) {
           >
             ×
           </button>
+
+          {painting === tag && (
+            <div className="palette">
+              <button
+                className="palette__auto"
+                onClick={() => {
+                  onColor(tag, autoColor);
+                  setPainting(null);
+                }}
+              >
+                авто
+              </button>
+              {Array.from({ length: tagPalette }, (_, color) => (
+                <button
+                  key={color}
+                  className="palette__swatch"
+                  data-color={color}
+                  aria-label={`цвет ${color}`}
+                  onClick={() => {
+                    onColor(tag, color);
+                    setPainting(null);
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </span>
       ))}
 

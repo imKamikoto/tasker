@@ -155,6 +155,11 @@ func (n *Notes) SetTags(ctx context.Context, id string, tags []string) (index.Re
 	return n.service.SetTags(ctx, id, tags)
 }
 
+// SetTagColor выбирает цвет тега из палитры; -1 снимает выбор.
+func (n *Notes) SetTagColor(ctx context.Context, name string, color int) error {
+	return n.service.SetTagColor(ctx, name, color)
+}
+
 // Notebooks возвращает дерево ноутбуков со счётчиками.
 func (n *Notes) Notebooks(ctx context.Context) ([]index.Notebook, error) {
 	return n.service.Notebooks(ctx)

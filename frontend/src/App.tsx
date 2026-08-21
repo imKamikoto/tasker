@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   api,
@@ -57,6 +57,17 @@ export default function App() {
   // Файл изменился на диске, пока в буфере лежит несохранённое. Молча взять
   // любую из сторон нельзя: обе — чья-то работа.
   const [conflict, setConflict] = useState(false);
+
+  // Выбранные вручную цвета тегов приходят из индекса вместе со счётчиками:
+  // «default» означает, что цвет выведется из имени.
+  const chosenColors = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const tag of tags) {
+      const parsed = Number(tag.Color);
+      if (Number.isInteger(parsed)) map[tag.Name] = parsed;
+    }
+    return map;
+  }, [tags]);
 
   // Просьба передать фокус в редактор. Число, а не флаг: Enter, нажатый дважды,
   // должен сработать оба раза.
@@ -404,6 +415,8 @@ export default function App() {
           focusToken={focusToken}
           knownTags={tags.map((tag) => tag.Name)}
           onTags={(next) => act(api.setTags(note.ID, next), true)}
+          tagColors={chosenColors}
+          onTagColor={(tag, color) => act(api.setTagColor(tag, color), true)}
           onReload={() => {
             // Пересоздание редактора выбрасывает буфер вместе с ним.
             dirty.current = false;

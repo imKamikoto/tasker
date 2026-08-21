@@ -468,6 +468,15 @@ button.row__label {
 
 /* Оттенок по имени тега: палитра на 14 значений (SPEC §8.2). Крутим тон
    вокруг дубового, чтобы теги отличались, но не выпадали из темы. */
+.chip__name {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
 .chip[data-color="1"] { color: hsl(14deg 45% 66%); }
 .chip[data-color="2"] { color: hsl(40deg 55% 64%); }
 .chip[data-color="3"] { color: hsl(66deg 35% 60%); }
@@ -527,3 +536,62 @@ button.row__label {
   background: var(--color-bg-elevated);
   box-shadow: 0 8px 24px hsl(var(--hsl-bg-shadow) / 0.6);
 }
+
+/* Выбор цвета тега: палитра на 14 значений плюс «авто» (SPEC §8.2). */
+.chip {
+  position: relative;
+}
+
+.palette {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(5, 16px);
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 8px 24px hsl(var(--hsl-bg-shadow) / 0.6);
+}
+
+.palette__auto {
+  grid-column: 1 / -1;
+  border: 0;
+  padding: 2px;
+  border-radius: 3px;
+  background: var(--color-oak-100);
+  color: var(--color-fg-muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: default;
+}
+
+.palette__auto:hover {
+  color: var(--color-fg);
+}
+
+.palette__swatch {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.palette__swatch[data-color="0"] { background: var(--color-oak-600); }
+.palette__swatch[data-color="1"] { background: hsl(14deg 45% 66%); }
+.palette__swatch[data-color="2"] { background: hsl(40deg 55% 64%); }
+.palette__swatch[data-color="3"] { background: hsl(66deg 35% 60%); }
+.palette__swatch[data-color="4"] { background: hsl(92deg 32% 60%); }
+.palette__swatch[data-color="5"] { background: hsl(118deg 32% 62%); }
+.palette__swatch[data-color="6"] { background: hsl(146deg 35% 60%); }
+.palette__swatch[data-color="7"] { background: hsl(172deg 35% 58%); }
+.palette__swatch[data-color="8"] { background: hsl(196deg 40% 62%); }
+.palette__swatch[data-color="9"] { background: hsl(214deg 45% 68%); }
+.palette__swatch[data-color="10"] { background: hsl(242deg 40% 70%); }
+.palette__swatch[data-color="11"] { background: hsl(272deg 35% 68%); }
+.palette__swatch[data-color="12"] { background: hsl(302deg 32% 66%); }
+.palette__swatch[data-color="13"] { background: hsl(330deg 42% 68%); }

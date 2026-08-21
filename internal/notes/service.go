@@ -42,6 +42,7 @@ type Service struct {
 	index  *index.Index
 	git    *gitstore.Store
 	lock   *vaultLock
+	colors *colorStore
 	origin vault.Origin
 }
 
@@ -70,7 +71,14 @@ func Open(ctx context.Context, root string, opts Options) (*Service, error) {
 	if origin == "" {
 		origin = vault.OriginUser
 	}
-	return &Service{vault: v, index: ix, git: git, lock: newVaultLock(dir), origin: origin}, nil
+	return &Service{
+		vault:  v,
+		index:  ix,
+		git:    git,
+		lock:   newVaultLock(dir),
+		colors: newColorStore(dir),
+		origin: origin,
+	}, nil
 }
 
 func (s *Service) Close() error         { return s.index.Close() }
@@ -85,8 +93,29 @@ func (s *Service) Sync(ctx context.Context) (index.ScanResult, error) {
 		return index.ScanResult{}, err
 	}
 	defer release()
-	return s.index.Scan(ctx, s.vault)
+
+	result, err := s.index.Scan(ctx, s.vault)
+	if err != nil {
+		return result, err
+	}
+	// Цвета живут в файле, а индекс мог быть только что пересобран с нуля.
+	// Возвращаем их на место здесь, чтобы list_tags отвечал как раньше.
+	if err := s.index.ApplyTagColors(ctx, s.colors.load()); err != nil {
+		return result, err
+	}
+	return result, nil
 }
+
+// SetTagColor выбирает цвет тега из палитры или снимает выбор (AutoColor).
+func (s *Service) SetTagColor(ctx context.Context, name string, color int) error {
+	if err := s.colors.set(name, color); err != nil {
+		return err
+	}
+	return s.index.ApplyTagColors(ctx, s.colors.load())
+}
+
+// TagColors возвращает выбранные вручную цвета.
+func (s *Service) TagColors() map[string]int { return s.colors.load() }
 
 // CreateParams — что нужно для новой заметки (docs/MCP.md §3).
 type CreateParams struct {

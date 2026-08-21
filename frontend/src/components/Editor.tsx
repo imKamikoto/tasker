@@ -19,6 +19,8 @@ type Props = {
   focusToken: number;
   knownTags: string[];
   onTags: (tags: string[]) => void;
+  tagColors: Record<string, number>;
+  onTagColor: (tag: string, color: number) => void;
   onReload: () => void;
   onKeepMine: () => void;
 };
@@ -41,6 +43,8 @@ export function Editor({
   focusToken,
   knownTags,
   onTags,
+  tagColors,
+  onTagColor,
   onReload,
   onKeepMine,
 }: Props) {
@@ -144,7 +148,13 @@ export function Editor({
         </span>
       </div>
 
-      <TagField tags={note.Tags ?? []} known={knownTags} onChange={onTags} />
+      <TagField
+        tags={note.Tags ?? []}
+        known={knownTags}
+        onChange={onTags}
+        colors={tagColors}
+        onColor={onTagColor}
+      />
 
       {conflict && (
         <div className="conflict">
