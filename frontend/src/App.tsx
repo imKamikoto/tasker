@@ -184,6 +184,19 @@ export default function App() {
       .catch((err) => setNoteError(describeError(err)));
   }, []);
 
+  // Создание заметки: в текущем ноутбуке, если он выбран, иначе в корне.
+  const createNote = useCallback(() => {
+    const notebook = filter.kind === "notebook" ? filter.path : "";
+    api
+      .create("Новая заметка", notebook)
+      .then((created) => {
+        setSelected([created.ID]);
+        setAnchor(created.ID);
+        setRevision((n) => n + 1);
+      })
+      .catch((err) => setListError(describeError(err)));
+  }, [filter]);
+
   const onFilter = useCallback((next: Filter) => {
     setFilter(next);
     setSelected([]);
@@ -242,6 +255,12 @@ export default function App() {
       if (typing) return;
 
       // Cmd+Backspace — в корзину, Cmd+D — дублировать (SPEC §8.4).
+      if (event.metaKey && !event.ctrlKey && !event.altKey && event.key === "n") {
+        event.preventDefault();
+        createNote();
+        return;
+      }
+
       if (event.metaKey && !event.ctrlKey && !event.altKey && selected.length > 0) {
         if (event.key === "Backspace") {
           event.preventDefault();
@@ -297,7 +316,7 @@ export default function App() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notes, selected, single, act]);
+  }, [notes, selected, single, act, createNote]);
 
   return (
     <div
@@ -323,6 +342,10 @@ export default function App() {
         filter={filter}
         onFilter={onFilter}
         collapsed={settings.collapsed}
+        onCreateNotebook={(path) => act(api.createNotebook(path), true)}
+        onRenameNotebook={(from, to) => act(api.renameNotebook(from, to), true)}
+        onDeleteNotebook={(path) => act(api.deleteNotebook(path), true)}
+        onRenameTag={(from, to) => act(api.renameTag(from, to), true)}
         onDropNote={(id, notebook) =>
           // Тащат одну строку, но если она внутри выделения — переносится всё
           // выделение: иначе пришлось бы тащить их по одной.
@@ -366,6 +389,7 @@ export default function App() {
         onSort={(sortField, sortReversed) =>
           setSettings((current) => ({ ...current, sortField, sortReversed }))
         }
+        onCreate={createNote}
       />
       <Splitter
         width={settings.listWidth}

@@ -160,6 +160,21 @@ func (n *Notes) SetTagColor(ctx context.Context, name string, color int) error {
 	return n.service.SetTagColor(ctx, name, color)
 }
 
+// CreateNotebook заводит пустой ноутбук.
+func (n *Notes) CreateNotebook(ctx context.Context, path string) error {
+	return n.service.CreateNotebook(ctx, path)
+}
+
+// RenameNotebook переименовывает ноутбук вместе со всем содержимым.
+func (n *Notes) RenameNotebook(ctx context.Context, from, to string) ([]index.Record, error) {
+	return n.service.RenameNotebook(ctx, from, to)
+}
+
+// DeleteNotebook переносит содержимое ноутбука в корзину и убирает папку.
+func (n *Notes) DeleteNotebook(ctx context.Context, path string) ([]index.Record, error) {
+	return n.service.DeleteNotebook(ctx, path)
+}
+
 // Notebooks возвращает дерево ноутбуков со счётчиками.
 func (n *Notes) Notebooks(ctx context.Context) ([]index.Notebook, error) {
 	return n.service.Notebooks(ctx)

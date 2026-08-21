@@ -43,6 +43,9 @@ export const api = {
   setStatus: (id: string, status: string) => Notes.SetStatus(id, status),
   trash: (id: string) => Notes.Trash(id),
   create: (title: string, notebook: string) => Notes.Create(title, notebook),
+  createNotebook: (path: string) => Notes.CreateNotebook(path),
+  renameNotebook: (from: string, to: string) => Notes.RenameNotebook(from, to),
+  deleteNotebook: (path: string) => Notes.DeleteNotebook(path),
   /** Ответ Go: буфер записан, окно можно закрывать. */
   readyToClose: () => Closing.Ready(),
 

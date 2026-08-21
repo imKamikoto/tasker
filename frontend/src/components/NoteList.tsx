@@ -20,6 +20,7 @@ type Props = {
   sortField: SortField;
   sortReversed: boolean;
   onSort: (field: SortField, reversed: boolean) => void;
+  onCreate: () => void;
 };
 
 /** Подписи сортировок. Порядок — как в SPEC §8.4. */
@@ -45,6 +46,7 @@ export function NoteList({
   sortField,
   sortReversed,
   onSort,
+  onCreate,
 }: Props) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -74,14 +76,19 @@ export function NoteList({
 
   return (
     <div className="pane pane--list">
-      <input
-        className="search"
-        placeholder="Поиск: слово, tag:баг, status:active…"
-        value={query}
-        onChange={(event) => onQuery(event.target.value)}
-        spellCheck={false}
-        autoCorrect="off"
-      />
+      <div className="listbar">
+        <input
+          className="search"
+          placeholder="Поиск: слово, tag:баг, status:active…"
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          spellCheck={false}
+          autoCorrect="off"
+        />
+        <button className="listbar__add" title="Новая заметка (Cmd+N)" onClick={onCreate}>
+          +
+        </button>
+      </div>
 
       <div className="sortbar">
         {(Object.keys(sortLabels) as SortField[]).map((field) => (

@@ -812,11 +812,7 @@ func quoteTerm(v string) string {
 	return v
 }
 
-// Notebooks и Tags отдают дерево ноутбуков и список тегов.
-func (s *Service) Notebooks(ctx context.Context) ([]index.Notebook, error) {
-	return s.index.Notebooks(ctx)
-}
-
+// Tags отдаёт список тегов со счётчиками.
 func (s *Service) Tags(ctx context.Context) ([]index.Tag, error) {
 	return s.index.Tags(ctx)
 }

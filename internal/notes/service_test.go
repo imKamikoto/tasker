@@ -1129,3 +1129,151 @@ func TestTagColorsSurviveCorruptFile(t *testing.T) {
 		t.Errorf("запись поверх битого файла: %v", err)
 	}
 }
+
+// Пустой ноутбук должен быть виден: иначе создать его некуда.
+func TestCreateEmptyNotebookIsVisible(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	if err := s.CreateNotebook(ctx, "Работа/Идеи"); err != nil {
+		t.Fatalf("CreateNotebook: %v", err)
+	}
+
+	books, err := s.Notebooks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]int{}
+	for _, book := range books {
+		paths[book.Path] = book.Count
+	}
+	if _, ok := paths["Работа/Идеи"]; !ok {
+		t.Errorf("пустой ноутбук не виден: %v", paths)
+	}
+	if _, ok := paths["Работа"]; !ok {
+		t.Errorf("промежуточный ноутбук не виден: %v", paths)
+	}
+	if paths["Работа/Идеи"] != 0 {
+		t.Errorf("в пустом ноутбуке %d заметок", paths["Работа/Идеи"])
+	}
+}
+
+func TestCreateNotebookRejectsBadPaths(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	for _, path := range []string{"../снаружи", "/etc", ".git"} {
+		if err := s.CreateNotebook(ctx, path); err == nil {
+			t.Errorf("ноутбук %q принят", path)
+		}
+	}
+}
+
+// Служебные каталоги ноутбуками не считаются.
+func TestNotebooksSkipSpecialDirs(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	for _, dir := range []string{".trash", "attachments/2026/08", ".git/objects"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(dir)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	books, err := s.Notebooks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, book := range books {
+		if strings.HasPrefix(book.Path, ".") || strings.HasPrefix(book.Path, "attachments") {
+			t.Errorf("служебный каталог показан ноутбуком: %q", book.Path)
+		}
+	}
+}
+
+func TestRenameNotebook(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, CreateParams{Title: "Внутри", Notebook: "Работа"}); err != nil {
+		t.Fatal(err)
+	}
+	// Два уровня вложенности, а не один: порядок удаления опустевших каталогов
+	// виден только на глубине — сверху вниз родитель не удалится.
+	if _, err := s.Create(ctx, CreateParams{Title: "Глубже", Notebook: "Работа/Баги/Старые"}); err != nil {
+		t.Fatal(err)
+	}
+	before := commitCount(t, root)
+
+	moved, err := s.RenameNotebook(ctx, "Работа", "Дела")
+	if err != nil {
+		t.Fatalf("RenameNotebook: %v", err)
+	}
+	if len(moved) != 2 {
+		t.Fatalf("перенесено %d заметок", len(moved))
+	}
+	if added := commitCount(t, root) - before; added != 1 {
+		t.Errorf("коммитов %d, ожидался один", added)
+	}
+
+	books := map[string]bool{}
+	list, err := s.Notebooks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, book := range list {
+		books[book.Path] = true
+	}
+	if books["Работа"] || books["Работа/Баги"] || books["Работа/Баги/Старые"] {
+		t.Errorf("старое имя осталось: %v", books)
+	}
+	// Вложенные ноутбуки переезжают вместе с родителем.
+	if !books["Дела"] || !books["Дела/Баги"] || !books["Дела/Баги/Старые"] {
+		t.Errorf("новое дерево не собралось: %v", books)
+	}
+}
+
+func TestDeleteNotebookMovesToTrash(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	created, err := s.Create(ctx, CreateParams{Title: "Внутри", Notebook: "Ненужный"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	trashed, err := s.DeleteNotebook(ctx, "Ненужный")
+	if err != nil {
+		t.Fatalf("DeleteNotebook: %v", err)
+	}
+	if len(trashed) != 1 {
+		t.Fatalf("в корзину уехало %d", len(trashed))
+	}
+
+	// Заметка не пропала — её можно вернуть.
+	got, err := s.Index().Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("заметка исчезла: %v", err)
+	}
+	if !got.Trashed {
+		t.Error("заметка не помечена удалённой")
+	}
+
+	list, err := s.Notebooks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, book := range list {
+		if book.Path == "Ненужный" {
+			t.Error("папка удалённого ноутбука осталась")
+		}
+	}
+}
+
+// Корень удалить или переименовать нельзя.
+func TestNotebookOpsRejectRoot(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	if _, err := s.RenameNotebook(ctx, "", "Новый"); err == nil {
+		t.Error("корень переименован")
+	}
+	if _, err := s.DeleteNotebook(ctx, ""); err == nil {
+		t.Error("корень удалён")
+	}
+}

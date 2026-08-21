@@ -29,11 +29,25 @@ export function Create(title: string, notebook: string): $CancellablePromise<ind
 }
 
 /**
+ * CreateNotebook заводит пустой ноутбук.
+ */
+export function CreateNotebook(path: string): $CancellablePromise<void> {
+    return $Call.ByID(754186437, path);
+}
+
+/**
  * Delete удаляет заметку насовсем. Только из корзины и только отсюда: агенту
  * это не дано (docs/MCP.md §4).
  */
 export function Delete(id: string): $CancellablePromise<void> {
     return $Call.ByID(3028446315, id);
+}
+
+/**
+ * DeleteNotebook переносит содержимое ноутбука в корзину и убирает папку.
+ */
+export function DeleteNotebook(path: string): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(1355849942, path);
 }
 
 /**
@@ -66,6 +80,13 @@ export function MoveMany(ids: string[] | null, notebook: string): $CancellablePr
  */
 export function Notebooks(): $CancellablePromise<index$0.Notebook[] | null> {
     return $Call.ByID(1054013206);
+}
+
+/**
+ * RenameNotebook переименовывает ноутбук вместе со всем содержимым.
+ */
+export function RenameNotebook($from: string, to: string): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(258134739, $from, to);
 }
 
 /**
