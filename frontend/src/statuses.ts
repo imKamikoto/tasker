@@ -1,19 +1,20 @@
-/** Статусы в порядке шоткатов Cmd+Ctrl+1..5 (SPEC §8.3). */
+/** Статусы заметки-задачи (SPEC §8.3). */
 export const statuses = ["none", "active", "onHold", "completed", "dropped"] as const;
 
 export type Status = (typeof statuses)[number];
 
-/** Скрыт ли статус из списка по умолчанию. */
-export function isDone(status: string): boolean {
-  return status === "completed" || status === "dropped";
-}
+/** Префикс команд смены статуса в раскладке клавиш. */
+export const statusCommandPrefix = "note.status.";
 
 /**
- * statusForKey сопоставляет цифру со статусом.
+ * statusForCommand достаёт статус из имени команды вида note.status.onhold.
  *
- * Возвращает undefined для всего остального: обработчик не должен угадывать.
+ * Имена команд пишутся в keymap.json руками, поэтому они целиком в нижнем
+ * регистре: заставлять человека помнить про заглавную H в onHold — верный
+ * способ получить молча не работающую привязку.
  */
-export function statusForKey(key: string): Status | undefined {
-  const index = Number(key) - 1;
-  return Number.isInteger(index) ? statuses[index] : undefined;
+export function statusForCommand(command: string): Status | undefined {
+  if (!command.startsWith(statusCommandPrefix)) return undefined;
+  const name = command.slice(statusCommandPrefix.length);
+  return statuses.find((status) => status.toLowerCase() === name);
 }

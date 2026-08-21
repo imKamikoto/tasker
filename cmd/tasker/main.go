@@ -68,7 +68,14 @@ func run(args []string) error {
 	// редактор примется перечитывать собственный буфер (SPEC §5.3).
 	service.Vault().OnWrite(files.Ignore)
 
-	instance, window := newApplication(service)
+	// Раскладка клавиш живёт в домашней папке: она принадлежит человеку, а не
+	// набору заметок (SPEC §8.11).
+	keymap, err := app.NewKeymap("")
+	if err != nil {
+		return err
+	}
+
+	instance, window := newApplication(service, keymap)
 	go app.NewWatch(service, emitter(instance), logError).Run(ctx, files.Events())
 	registerClosing(instance, window, service)
 
@@ -125,13 +132,14 @@ func logError(err error) {
 	log.Printf("tasker: %v", err)
 }
 
-func newApplication(service *notes.Service) (*application.App, *application.WebviewWindow) {
+func newApplication(service *notes.Service, keymap *app.Keymap) (*application.App, *application.WebviewWindow) {
 	instance := application.New(application.Options{
 		Name:        "Tasker",
 		Description: "Заметки и задачи",
 		Services: []application.Service{
 			application.NewService(app.NewNotes(service)),
 			application.NewService(app.NewSettings(filepath.Join(service.Vault().Root(), ".tasker"))),
+			application.NewService(keymap),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(tasker.Assets),

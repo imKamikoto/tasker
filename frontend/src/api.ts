@@ -2,7 +2,7 @@ import { Events } from "@wailsio/runtime";
 
 import { defaultSettings, parseSettings, type UISettings } from "./settings";
 
-import { Closing, Notes, Settings } from "../bindings/tasker/internal/app";
+import { Closing, Keymap, Notes, Settings } from "../bindings/tasker/internal/app";
 import type { Record as NoteRecord, Notebook, Tag } from "../bindings/tasker/internal/index/models";
 import type { Note } from "../bindings/tasker/internal/notes/models";
 
@@ -54,6 +54,9 @@ export const api = {
     return raw ? parseSettings(raw) : { ...defaultSettings };
   },
   saveSettings: (value: UISettings) => Settings.Save(JSON.stringify(value)),
+
+  loadKeymap: () => Keymap.Load(),
+  keymapPath: () => Keymap.Path(),
 };
 
 /** Имена событий из SPEC §6. Совпадают с константами в internal/app. */

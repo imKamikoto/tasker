@@ -1,27 +1,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { isDone, statusForKey, statuses } from "./statuses.ts";
+import { statusForCommand, statuses } from "./statuses.ts";
 
-test("цифры сопоставлены статусам по порядку из SPEC §8.3", () => {
-  assert.equal(statusForKey("1"), "none");
-  assert.equal(statusForKey("2"), "active");
-  assert.equal(statusForKey("3"), "onHold");
-  assert.equal(statusForKey("4"), "completed");
-  assert.equal(statusForKey("5"), "dropped");
+test("у каждого статуса есть команда", () => {
+  for (const status of statuses) {
+    assert.equal(statusForCommand(`note.status.${status.toLowerCase()}`), status);
+  }
   assert.equal(statuses.length, 5);
 });
 
-test("посторонние клавиши не дают статуса", () => {
-  for (const key of ["0", "6", "9", "a", "", "Enter", "-1"]) {
-    assert.equal(statusForKey(key), undefined, `клавиша ${key}`);
-  }
+// Имена в keymap.json пишутся руками, поэтому нижний регистр обязан работать.
+test("onhold находит onHold", () => {
+  assert.equal(statusForCommand("note.status.onhold"), "onHold");
 });
 
-test("скрытые по умолчанию — только завершённое и брошенное", () => {
-  assert.equal(isDone("completed"), true);
-  assert.equal(isDone("dropped"), true);
-  assert.equal(isDone("active"), false);
-  assert.equal(isDone("onHold"), false);
-  assert.equal(isDone("none"), false);
+test("чужие команды статуса не дают", () => {
+  for (const command of ["note.create", "list.down", "note.status.", "note.status.выдуманный", ""]) {
+    assert.equal(statusForCommand(command), undefined, `команда ${command}`);
+  }
 });

@@ -14,9 +14,10 @@ import {
 import { Editor } from "./components/Editor";
 import { NoteList } from "./components/NoteList";
 import { Sidebar, type Filter } from "./components/Sidebar";
+import { resolveCommand, type Keymap } from "./keys";
 import { applyClick } from "./selection";
 import { defaultSettings } from "./settings";
-import { statusForKey } from "./statuses";
+import { statusForCommand } from "./statuses";
 import { MovePicker } from "./components/MovePicker";
 import { Splitter } from "./components/Splitter";
 
@@ -73,6 +74,11 @@ export default function App() {
   // должен сработать оба раза.
   const [focusToken, setFocusToken] = useState(0);
 
+  // Раскладка клавиш из ~/.tasker/keymap.json (SPEC §8.11). Пустая до загрузки:
+  // до неё ни одна команда не сработает, и это правильнее, чем срабатывание по
+  // зашитым умолчаниям, которые человек мог переназначить.
+  const [keymap, setKeymap] = useState<Keymap>({});
+
   // Открыт ли выбор ноутбука для переноса (клавиша m).
   const [moving, setMoving] = useState(false);
 
@@ -82,6 +88,11 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    api
+      .loadKeymap()
+      .then((loaded) => !cancelled && setKeymap(loaded as Keymap))
+      .catch((err) => !cancelled && setListError(describeError(err)));
+
     api
       .loadSettings()
       .then((loaded) => !cancelled && setSettings(loaded))
@@ -228,95 +239,77 @@ export default function App() {
     );
   }, []);
 
-  // Клавиатура списка. Слушаем окно, а не список: фокус может быть где угодно,
-  // а шоткаты статусов должны работать и из редактора (SPEC §8.4, §8.3).
+  // Клавиатура. Слушаем окно, а не список: сочетание может прийти откуда
+  // угодно, а разводит их контекст, а не место обработчика (SPEC §8.11).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      // В поле ввода буквы — это буквы, а не команды.
       const target = event.target as HTMLElement | null;
       const typing =
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
         target?.isContentEditable === true;
 
-      if (event.metaKey && event.ctrlKey) {
-        const status = statusForKey(event.key);
-        if (status && selected.length > 0) {
-          event.preventDefault();
-          // Заметки могли перестать подходить под фильтр — перечитываем список.
-          act(api.setStatusMany(selected, status), true);
-        }
-        return;
-      }
+      // От частного к общему: в тексте контекст редактора пуст, поэтому до
+      // клавиш списка дело не доходит, а глобальные работают везде.
+      const contexts = typing ? ["editor", "global"] : ["note-list", "global"];
+      const command = resolveCommand(keymap, contexts, event);
+      if (!command) return;
 
-      // Дальше — команды списка, и в тексте им делать нечего: Cmd+D там
-      // мультикурсор CodeMirror (SPEC §8.6), Cmd+Backspace — удаление до
-      // начала строки, а буквы — буквы.
-      if (typing) return;
-
-      // Cmd+Backspace — в корзину, Cmd+D — дублировать (SPEC §8.4).
-      if (event.metaKey && !event.ctrlKey && !event.altKey && event.key === "n") {
+      const status = statusForCommand(command);
+      if (status) {
+        if (selected.length === 0) return;
         event.preventDefault();
-        createNote();
+        act(api.setStatusMany(selected, status), true);
         return;
       }
 
-      if (event.metaKey && !event.ctrlKey && !event.altKey && selected.length > 0) {
-        if (event.key === "Backspace") {
+      switch (command) {
+        case "note.create":
+          event.preventDefault();
+          createNote();
+          return;
+        case "note.trash":
+          if (selected.length === 0) return;
           event.preventDefault();
           act(api.trashMany(selected));
           return;
-        }
-        if (event.key === "d" && single) {
-          // Дублирование остаётся штучным: копия пачки почти всегда промах.
+        case "note.duplicate":
+          if (!single) return;
           event.preventDefault();
           act(api.duplicate(single));
           return;
-        }
-      }
-
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-
-      switch (event.key) {
-        case "j":
-        case "k": {
-          event.preventDefault();
-          // Стрелками ходим по одной: расширять выделение с клавиатуры — это
-          // Shift+клик, а не j и k.
-          const next = step(notes, single, event.key === "j" ? 1 : -1);
-          setSelected(next ? [next] : []);
-          setAnchor(next);
-          return;
-        }
-        case "Enter":
-          // Из списка — в текст. Обратно уводит вим по :q или мышь.
-          if (single) {
-            event.preventDefault();
-            setFocusToken((n) => n + 1);
-          }
-          return;
-        case "m":
-          // Перенос в другой ноутбук: выбор открывается поверх списка.
-          if (selected.length > 0) {
-            event.preventDefault();
-            setMoving(true);
-          }
-          return;
-        case "p": {
+        case "note.move":
           if (selected.length === 0) return;
           event.preventDefault();
-          // Пачку закрепляем целиком, ориентируясь на первую заметку: половину
-          // закрепить, половину открепить — не то, чего ждут от одной клавиши.
+          setMoving(true);
+          return;
+        case "note.pin": {
+          if (selected.length === 0) return;
+          event.preventDefault();
+          // Пачку закрепляем целиком, ориентируясь на первую заметку.
           const first = notes.find((item) => item.ID === selected[0]);
           act(api.setPinnedMany(selected, !(first?.Pinned ?? false)), true);
           return;
         }
+        case "list.down":
+        case "list.up": {
+          event.preventDefault();
+          const next = step(notes, single, command === "list.down" ? 1 : -1);
+          setSelected(next ? [next] : []);
+          setAnchor(next);
+          return;
+        }
+        case "list.open":
+          if (!single) return;
+          event.preventDefault();
+          setFocusToken((n) => n + 1);
+          return;
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notes, selected, single, act, createNote]);
+  }, [keymap, notes, selected, single, act, createNote]);
 
   return (
     <div
