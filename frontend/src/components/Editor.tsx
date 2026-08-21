@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError, events, subscribe, type Note, type NoteRecord } from "../api";
-import { CodeMirror } from "./CodeMirror";
+import { backlinkCount } from "../format";
+import { statusGlyphs, statuses, type Status } from "../statuses";
+import { CodeMirror, type EditorStatus } from "./CodeMirror";
+import { ConflictModal } from "./ConflictModal";
 import { TagField } from "./TagField";
 
-/** Сколько ждать после последней правки перед записью (SPEC §, фаза 3). */
-const saveDelay = 400;
+/** Шоткаты статусов в меню. Индекс совпадает с порядком в statuses. */
+const statusKeys = ["⌘⌃1", "⌘⌃2", "⌘⌃3", "⌘⌃4", "⌘⌃5"];
 
 type Props = {
   note: Note;
@@ -21,8 +24,17 @@ type Props = {
   onTags: (tags: string[]) => void;
   tagColors: Record<string, number>;
   onTagColor: (tag: string, color: number) => void;
+  onStatus: (status: Status) => void;
+  /** Режим вима наружу: от него зависит, можно ли отобрать сочетание у текста. */
+  onMode: (mode: string) => void;
   onReload: () => void;
   onKeepMine: () => void;
+  /** Сколько ждать после последней правки перед записью, мс. */
+  saveDelay: number;
+  lineNumbers: boolean;
+  lineWrap: boolean;
+  /** Колонка принимает клавиши: показываем полосу, как у соседей. */
+  focused: boolean;
 };
 
 type SaveState = "clean" | "dirty" | "saving" | "failed";
@@ -45,12 +57,21 @@ export function Editor({
   onTags,
   tagColors,
   onTagColor,
+  onStatus,
+  onMode,
   onReload,
   onKeepMine,
+  saveDelay,
+  lineNumbers,
+  lineWrap,
+  focused,
 }: Props) {
   const [title, setTitle] = useState(note.Title);
   const [state, setState] = useState<SaveState>("clean");
   const [error, setError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [statusMenu, setStatusMenu] = useState(false);
+  const [status, setStatus] = useState<EditorStatus>({ mode: "NORMAL", line: 1, column: 1 });
 
   // Текущее содержимое держим в ref, а не в state: перерисовывать панель на
   // каждое нажатие незачем, а сохранению нужны свежие значения — в том числе
@@ -72,6 +93,7 @@ export function Editor({
     try {
       const saved = await api.save(note.ID, nextTitle, body);
       setState("clean");
+      setSavedAt(new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
       setError(null);
       onSaved(saved);
     } catch (err) {
@@ -89,7 +111,7 @@ export function Editor({
     setState("dirty");
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = window.setTimeout(save, saveDelay);
-  }, [save, onDirty]);
+  }, [save, onDirty, saveDelay]);
 
   // Несохранённое при закрытии заметки обязано уехать на диск: переключение
   // заметки — это размонтирование, и другого шанса не будет.
@@ -129,8 +151,12 @@ export function Editor({
     [schedule],
   );
 
+  const backlinks = note.Backlinks?.length ?? 0;
+
   return (
-    <div className="pane pane--editor">
+    <div className="pane pane--editor" data-focused={focused}>
+      <div className="drag-strip" />
+
       <input
         className="editor__title"
         value={title}
@@ -139,12 +165,54 @@ export function Editor({
         autoCorrect="off"
         placeholder="Без заголовка"
       />
+
       <div className="editor__meta">
-        <span>{note.Notebook || "Корень"}</span>
-        {note.Status !== "none" && <span className="status">{note.Status}</span>}
-        {(note.Backlinks?.length ?? 0) > 0 && <span>ссылаются: {note.Backlinks?.length}</span>}
-        <span className="editor__state" data-state={state}>
-          {stateLabel(state)}
+        <span className="editor__book">{(note.Notebook || "Все заметки").replace(/\//g, " / ")}</span>
+        <span className="meta__sep">│</span>
+        {/* Плашка статуса — она же кнопка: место, где статус показан, и место,
+            где он меняется, должны совпадать. */}
+        <span style={{ position: "relative" }}>
+          <button
+            className="status-pill"
+            data-status={note.Status}
+            onClick={() => setStatusMenu((open) => !open)}
+          >
+            {statusGlyphs[note.Status as Status] ?? "·"} {note.Status}
+          </button>
+          {statusMenu && (
+            <div className="menu menu--sort" onMouseLeave={() => setStatusMenu(false)}>
+              {statuses.map((value, i) => (
+                <button
+                  key={value}
+                  className="menu__item"
+                  aria-selected={value === note.Status}
+                  onClick={() => {
+                    setStatusMenu(false);
+                    onStatus(value);
+                  }}
+                >
+                  <span className="menu__glyph" data-status={value}>
+                    {statusGlyphs[value]}
+                  </span>
+                  <span className="menu__label">{value}</span>
+                  {value === note.Status && <span className="menu__check">✓</span>}
+                  <span className="menu__key">{statusKeys[i]}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+        {backlinks > 0 && (
+          <>
+            <span className="meta__sep">│</span>
+            <span>{backlinkCount(backlinks)}</span>
+          </>
+        )}
+        <span className="editor__hints">
+          <span className="hint">⌘N новая</span>
+          <span className="editor__state" data-state={state}>
+            {stateLabel(state, savedAt)}
+          </span>
         </span>
       </div>
 
@@ -156,13 +224,7 @@ export function Editor({
         onColor={onTagColor}
       />
 
-      {conflict && (
-        <div className="conflict">
-          <span>Файл изменён снаружи, а здесь есть несохранённое.</span>
-          <button onClick={onReload}>Взять с диска</button>
-          <button onClick={onKeepMine}>Оставить моё</button>
-        </div>
-      )}
+      <div className="editor__rule" />
 
       {error && <div className="error">{error}</div>}
 
@@ -173,21 +235,48 @@ export function Editor({
           onWrite={save}
           onQuit={onClose}
           focusToken={focusToken}
+          onStatus={(next) => {
+            setStatus(next);
+            onMode(next.mode);
+          }}
+          lineNumbers={lineNumbers}
+          lineWrap={lineWrap}
         />
       </div>
+
+      <div className="editor__status">
+        <span className="editor__mode">{status.mode}</span>
+        <span>{note.Path}</span>
+        <span className="editor__status-right">
+          <span>markdown</span>
+          <span>utf-8</span>
+          <span>
+            {status.line}:{status.column}
+          </span>
+        </span>
+      </div>
+
+      {conflict && (
+        <ConflictModal
+          path={note.Path}
+          fromAgent={note.Origin === "agent"}
+          onReload={onReload}
+          onKeepMine={onKeepMine}
+        />
+      )}
     </div>
   );
 }
 
-function stateLabel(state: SaveState): string {
+function stateLabel(state: SaveState, at: string | null): string {
   switch (state) {
     case "saving":
-      return "сохраняю…";
+      return "● сохраняю…";
     case "dirty":
-      return "не сохранено";
+      return "● не сохранено";
     case "failed":
-      return "ошибка записи";
+      return "● ошибка записи";
     default:
-      return "сохранено";
+      return at ? `● сохранено ${at}` : "● сохранено";
   }
 }

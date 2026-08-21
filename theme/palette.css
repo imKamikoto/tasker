@@ -1,97 +1,231 @@
 /*
- * Shared color tokens for the oakgreen-dark-ui theme (ui.css, syntax.css,
- * preview.css). Only the custom tokens actually consumed by this theme are
- * defined here — everything else (full neutral/accent ramps, spacing, etc.)
- * already ships in @inkdropapp/css's own tokens.css.
+ * Палитра Tasker — закреплена дизайн-хендоффом (docs/design_handoff_tasker).
+ *
+ * Правило одно: интерфейс нейтрально-серый, цвет появляется только в акценте,
+ * статусах и тегах. Приложение открыто часами, и цветной хром на такой
+ * дистанции утомляет.
+ *
+ * Тема выбирается атрибутом data-theme на <html>: "dark", "light" или "auto"
+ * (по системе). Значение по умолчанию — тёмная, чтобы окно не мигало белым,
+ * пока настройки ещё не прочитаны с диска.
+ *
+ * Все значения — компоненты HSL без обёртки hsl(), чтобы к любому можно было
+ * дописать альфу: hsl(var(--hsl-accent) / 0.14).
  */
-@layer theme {
-  :root {
-    /* Signature accent: light oak — a soft, warm wood brown (#c4a484) that
-       replaces the original theme's saturated gold. Hue sits at ~30deg with
-       moderate saturation so it reads as timber rather than amber. */
-    --hsl-oak: 30deg 35% 64%;
-    /* Darkest wood: subtle panel/segment fills that barely lift off the page */
-    --hsl-oak-100: 28deg 22% 17%;
-    /* Mid wood: active rows, tabs and sidebar selection */
-    --hsl-oak-200: 28deg 26% 31%;
-    /* Dark wood: resting/selected list-row backgrounds */
-    --hsl-oak-400: 29deg 28% 23%;
-    /* Light tan: links and other text that must sit above the accent */
-    --hsl-oak-600: 31deg 42% 74%;
-    /* Palest sand: the lightest step, for high-contrast highlights */
-    --hsl-oak-800: 34deg 38% 84%;
 
-    --color-oak: hsl(var(--hsl-oak));
-    --color-oak-100: hsl(var(--hsl-oak-100));
-    --color-oak-200: hsl(var(--hsl-oak-200));
-    --color-oak-400: hsl(var(--hsl-oak-400));
-    --color-oak-600: hsl(var(--hsl-oak-600));
-    --color-oak-800: hsl(var(--hsl-oak-800));
+:root {
+  --hsl-bg: 0 0% 5%;
+  --hsl-bg-sidebar: 0 0% 2%;
+  --hsl-bg-elevated: 0 0% 11%;
+  --hsl-bg-hover: 0 0% 13%;
+  --hsl-bg-selected: 0 0% 17%;
+  --hsl-bg-badge: 0 0% 24%;
 
-    /* Backwards-compatible aliases: this accent used to be called "gold".
-       Kept so any stylesheet or user override still referencing the old names
-       keeps working — they now resolve to the oak values above. */
-    --hsl-gold: var(--hsl-oak);
-    --hsl-gold-100: var(--hsl-oak-100);
-    --hsl-gold-200: var(--hsl-oak-200);
-    --hsl-gold-400: var(--hsl-oak-400);
-    --hsl-gold-600: var(--hsl-oak-600);
-    --hsl-gold-800: var(--hsl-oak-800);
-    --color-gold: var(--color-oak);
-    --color-gold-100: var(--color-oak-100);
-    --color-gold-200: var(--color-oak-200);
-    --color-gold-400: var(--color-oak-400);
-    --color-gold-600: var(--color-oak-600);
-    --color-gold-800: var(--color-oak-800);
+  --hsl-fg: 0 0% 92%;
+  --hsl-fg-heading: 0 0% 96%;
+  --hsl-fg-muted: 0 0% 62%;
+  --hsl-fg-dim: 0 0% 45%;
+  --hsl-fg-faint: 0 0% 30%;
 
-    /* Secondary accent: green (matches the theme's name) */
-    --hsl-green: 152deg 50% 58%;
-    --color-green: hsl(var(--hsl-green));
-    /* Darker shades of the same hue, for positive-button hover/down states */
-    --hsl-green-hover: 152deg 50% 48%;
-    --color-green-hover: hsl(var(--hsl-green-hover));
-    --hsl-green-down: 152deg 45% 40%;
-    --color-green-down: hsl(var(--hsl-green-down));
+  --color-border: hsl(0 0% 100% / 0.1);
+  /* Граница между строками списка слабее общей: их много подряд, и на полной
+     она собирается в решётку. */
+  --color-border-soft: hsl(0 0% 100% / 0.07);
 
-    /* Single-shade accent used for tag icons */
-    --hsl-blue: 212deg 56% 27%;
-    --color-blue: hsl(var(--hsl-blue));
+  --hsl-status-active: 150 30% 55%;
+  --hsl-status-hold: 44 55% 58%;
+  --hsl-danger: 9 55% 60%;
 
-    /* Bright, legible yellow — kept clearly apart in hue from the green accent */
-    --hsl-yellow: 48deg 95% 60%;
-    --color-yellow: hsl(var(--hsl-yellow));
+  /* Насыщенность и светлота тегов. Оттенок берётся из --tag-hue: у каждого
+     тега он свой, а эти две составляющие общие, иначе палитра рассыпается. */
+  --tag-s: 40%;
+  --tag-l: 65%;
+  --tag-alpha: 0.16;
+}
 
-    /* Neutral grayscale used for panels/inputs */
-    --hsl-grey: 0 0% 10%;
+/* Светлая тема. Правило акцентов: тот же оттенок при L 26–44% — на белом
+   светлый акцент не читается вовсе. */
+:root[data-theme="light"] {
+  --hsl-bg: 0 0% 100%;
+  --hsl-bg-sidebar: 0 0% 96%;
+  --hsl-bg-elevated: 0 0% 95%;
+  --hsl-bg-hover: 0 0% 94%;
+  --hsl-bg-selected: 0 0% 90%;
+  --hsl-bg-badge: 0 0% 86%;
 
-    /* Foreground (text) family */
-    --hsl-fg: 0 0% 90%;
-    --hsl-fg-muted: 0 0% 85%;
-    /* Warm off-white used for borders and translucent text; pulled toward the
-       oak hue and desaturated so borders read as warm grey, not cream */
-    --hsl-base3: 34deg 40% 94%;
+  --hsl-fg: 0 0% 15%;
+  --hsl-fg-heading: 0 0% 8%;
+  --hsl-fg-muted: 0 0% 42%;
+  --hsl-fg-dim: 0 0% 52%;
+  --hsl-fg-faint: 0 0% 72%;
 
-    /* Background family — near-black with a hint of walnut, matching the oak accent */
-    --hsl-bg: 30deg 25% 6%;
-    --hsl-base05: 192deg 100% 5%;
-    --hsl-base04: 192deg 100% 8%;
-    --hsl-base03: 192deg 100% 11%;
-    --hsl-base02: 0 0% 20%;
-    --hsl-base01: 194deg 14% 40%;
+  --color-border: hsl(0 0% 0% / 0.12);
+  --color-border-soft: hsl(0 0% 0% / 0.08);
 
-    --hsl-bg-highlight: var(--hsl-base03);
-    --hsl-bg-muted-highlight: var(--hsl-base04);
-    /* Slightly lighter than --hsl-bg, for surfaces that should stand off the page (tooltips, popups) */
-    --hsl-bg-elevated: 30deg 25% 10%;
-    --color-bg-elevated: hsl(var(--hsl-bg-elevated));
-    /* Darker than --hsl-bg, for defining edges on elevated surfaces */
-    --hsl-bg-shadow: 30deg 25% 3%;
-    --color-bg-shadow: hsl(var(--hsl-bg-shadow));
+  --hsl-status-active: 150 40% 28%;
+  --hsl-status-hold: 38 70% 32%;
+  --hsl-danger: 9 60% 42%;
 
-    --color-base02: hsl(var(--hsl-base02));
-    --color-base05: hsl(var(--hsl-base05));
-    --color-bg: hsl(var(--hsl-bg));
-    --color-bg-highlight: hsl(var(--hsl-bg-highlight));
-    --color-bg-muted-highlight: hsl(var(--hsl-bg-muted-highlight));
+  --tag-s: 55%;
+  --tag-l: 40%;
+  --tag-alpha: 0.14;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] {
+    --hsl-bg: 0 0% 100%;
+    --hsl-bg-sidebar: 0 0% 96%;
+    --hsl-bg-elevated: 0 0% 95%;
+    --hsl-bg-hover: 0 0% 94%;
+    --hsl-bg-selected: 0 0% 90%;
+    --hsl-bg-badge: 0 0% 86%;
+
+    --hsl-fg: 0 0% 15%;
+    --hsl-fg-heading: 0 0% 8%;
+    --hsl-fg-muted: 0 0% 42%;
+    --hsl-fg-dim: 0 0% 52%;
+    --hsl-fg-faint: 0 0% 72%;
+
+    --color-border: hsl(0 0% 0% / 0.12);
+    --color-border-soft: hsl(0 0% 0% / 0.08);
+
+    --hsl-status-active: 150 40% 28%;
+    --hsl-status-hold: 38 70% 32%;
+    --hsl-danger: 9 60% 42%;
+
+    --tag-s: 55%;
+    --tag-l: 40%;
+    --tag-alpha: 0.14;
   }
+}
+
+/*
+ * Акценты. Выбираются атрибутом data-accent на <html>; по умолчанию — сталь.
+ *
+ * Верхняя граница яркости здесь не вкусовая: в тёмной теме S 18–28% / L 58–70%,
+ * в светлой тот же оттенок при L 26–44%. Всё, что ярче, режет глаза на длинной
+ * сессии — а именно так этим приложением и пользуются.
+ */
+:root,
+:root[data-accent="steel"] {
+  --hsl-accent: 210 28% 64%;
+}
+:root[data-accent="graphite"] {
+  --hsl-accent: 0 0% 62%;
+}
+:root[data-accent="sage"] {
+  --hsl-accent: 150 20% 58%;
+}
+:root[data-accent="lavender"] {
+  --hsl-accent: 258 24% 70%;
+}
+:root[data-accent="khaki"] {
+  --hsl-accent: 64 18% 62%;
+}
+:root[data-accent="clay"] {
+  --hsl-accent: 18 30% 62%;
+}
+/* Свой акцент: оттенок задаёт человек, а насыщенность и светлота берутся из
+   правила темы — иначе выбранный цвет выпадет из палитры и станет ярче всего
+   остального. */
+:root[data-accent="custom"] {
+  --hsl-accent: var(--hsl-accent-custom, 210) 28% 64%;
+}
+
+:root[data-theme="light"],
+:root[data-theme="light"][data-accent="steel"] {
+  --hsl-accent: 210 42% 36%;
+}
+:root[data-theme="light"][data-accent="graphite"] {
+  --hsl-accent: 0 0% 45%;
+}
+:root[data-theme="light"][data-accent="sage"] {
+  --hsl-accent: 150 32% 28%;
+}
+:root[data-theme="light"][data-accent="lavender"] {
+  --hsl-accent: 258 32% 44%;
+}
+:root[data-theme="light"][data-accent="khaki"] {
+  --hsl-accent: 64 40% 26%;
+}
+:root[data-theme="light"][data-accent="clay"] {
+  --hsl-accent: 18 42% 38%;
+}
+:root[data-theme="light"][data-accent="custom"] {
+  --hsl-accent: var(--hsl-accent-custom, 210) 42% 36%;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"],
+  :root[data-theme="auto"][data-accent="steel"] {
+    --hsl-accent: 210 42% 36%;
+  }
+  :root[data-theme="auto"][data-accent="graphite"] {
+    --hsl-accent: 0 0% 45%;
+  }
+  :root[data-theme="auto"][data-accent="sage"] {
+    --hsl-accent: 150 32% 28%;
+  }
+  :root[data-theme="auto"][data-accent="lavender"] {
+    --hsl-accent: 258 32% 44%;
+  }
+  :root[data-theme="auto"][data-accent="khaki"] {
+    --hsl-accent: 64 40% 26%;
+  }
+  :root[data-theme="auto"][data-accent="clay"] {
+    --hsl-accent: 18 42% 38%;
+  }
+  :root[data-theme="auto"][data-accent="custom"] {
+    --hsl-accent: var(--hsl-accent-custom, 210) 42% 36%;
+  }
+}
+
+/*
+ * Плотность панелей. Окно всегда создаётся полупрозрачным — переключателя на
+ * лету у Wails нет, — а видно это или нет, решают две переменные ниже.
+ *
+ * Единица означает «непрозрачно», и это умолчание: пока настройки не прочитаны,
+ * окно не должно мигать обоями.
+ */
+:root {
+  --panel-alpha: 1;
+  --panel-blur: 0px;
+
+  /* Редактор всегда плотнее списка: сквозь текст, который правят, обои
+     просвечивать не должны. Тридцать пунктов — из хендоффа. */
+  --editor-alpha: min(1, calc(var(--panel-alpha) + 0.3));
+}
+
+/* Готовые цвета поверх компонентов выше. Дальше по коду пользуются ими, а к
+   --hsl-* обращаются только там, где нужна своя альфа. */
+:root {
+  --color-bg: hsl(var(--hsl-bg));
+  --color-bg-sidebar: hsl(var(--hsl-bg-sidebar));
+  --color-bg-elevated: hsl(var(--hsl-bg-elevated));
+  --color-bg-hover: hsl(var(--hsl-bg-hover));
+  --color-bg-selected: hsl(var(--hsl-bg-selected));
+  --color-bg-badge: hsl(var(--hsl-bg-badge));
+
+  --color-fg: hsl(var(--hsl-fg));
+  --color-fg-heading: hsl(var(--hsl-fg-heading));
+  --color-fg-muted: hsl(var(--hsl-fg-muted));
+  --color-fg-dim: hsl(var(--hsl-fg-dim));
+  --color-fg-faint: hsl(var(--hsl-fg-faint));
+
+  --color-accent: hsl(var(--hsl-accent));
+  /* Фон плашек и подсветка целей перетаскивания. */
+  --color-accent-soft: hsl(var(--hsl-accent) / 0.14);
+  /* Рамки и пунктиры на акценте. */
+  --color-accent-line: hsl(var(--hsl-accent) / 0.5);
+
+  --color-status-active: hsl(var(--hsl-status-active));
+  --color-status-hold: hsl(var(--hsl-status-hold));
+  /* Завершённое и брошенное цвета не получают: они уходят в фон, а не
+     привлекают внимание. */
+  --color-status-done: var(--color-fg-muted);
+  --color-status-dropped: var(--color-fg-faint);
+  --color-danger: hsl(var(--hsl-danger));
+  /* Заметка от агента метится акцентом: другого цвета такой же важности в
+     палитре нет, а метка обязана быть заметной. */
+  --color-agent: var(--color-accent);
 }

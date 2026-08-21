@@ -1,3 +1,7 @@
+// С расширением, а не без: этот модуль прогоняется и сборщиком, и node в
+// тестах, а node без расширения соседний файл не найдёт.
+import { latinKey } from "./langmap.ts";
+
 /**
  * Разбор нажатия в строку вида «cmd+shift+k».
  *
@@ -30,7 +34,14 @@ export type KeyEventLike = {
 };
 
 export function combination(event: KeyEventLike): string {
-  const key = keyNames[event.key] ?? event.key.toLowerCase();
+  // Раскладка приводится к латинской по физической позиции клавиши. Без этого
+  // при включённом ЙЦУКЕН не работает вообще ни одно буквенное сочетание:
+  // Cmd+, приходит как Cmd+б, Cmd+N — как Cmd+т, а j и k в списке — как о и л.
+  // Переключать раскладку ради шотката человек не должен, поэтому здесь то же
+  // правило, что у вима, и та же таблица.
+  const named = keyNames[event.key];
+  const translated = named ?? latinKey(event.key);
+  const key = named ?? translated.toLowerCase();
 
   const parts: string[] = [];
   for (const modifier of modifierOrder) {
@@ -38,13 +49,30 @@ export function combination(event: KeyEventLike): string {
       (modifier === "cmd" && event.metaKey) ||
       (modifier === "ctrl" && event.ctrlKey) ||
       (modifier === "alt" && event.altKey) ||
-      // Shift не пишем для символов: cmd+shift+/ и cmd+? — одно нажатие, и
-      // различать их в файле настроек значит ловить человека на мелочи.
-      (modifier === "shift" && event.shiftKey && key.length > 1);
+      (modifier === "shift" && event.shiftKey && shiftMatters(translated));
     if (pressed) parts.push(modifier);
   }
   parts.push(key);
   return parts.join("+");
+}
+
+/**
+ * shiftMatters решает, писать ли shift в сочетание.
+ *
+ * У букв и именованных клавиш пишем: Ctrl+Shift+H и Ctrl+H — разные нажатия,
+ * и без этого второе съедало бы первое (буква всё равно приводится к нижнему
+ * регистру, так что отличить их было бы нечем).
+ *
+ * У остальных символов не пишем: shift там уже поменял сам символ. Cmd+Shift+/
+ * приходит как «?», и записать это ещё и с shift значит развести одно нажатие
+ * на две разные записи в keymap.json.
+ *
+ * Проверяется переведённый символ, а не исходный: русская «Б» — буква, но
+ * стоит на физической запятой и переводится в «<», где shift уже учтён.
+ */
+function shiftMatters(key: string): boolean {
+  if (key.length > 1) return true;
+  return key.toLowerCase() !== key.toUpperCase();
 }
 
 export type Keymap = Record<string, Record<string, string>>;

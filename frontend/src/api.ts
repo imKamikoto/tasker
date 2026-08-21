@@ -2,11 +2,17 @@ import { Events } from "@wailsio/runtime";
 
 import { defaultSettings, parseSettings, type UISettings } from "./settings";
 
-import { Closing, Keymap, Notes, Settings } from "../bindings/tasker/internal/app";
-import type { Record as NoteRecord, Notebook, Tag } from "../bindings/tasker/internal/index/models";
-import type { Note } from "../bindings/tasker/internal/notes/models";
+import { Closing, Git, Info, Keymap, Notes, Settings, Vaults } from "../bindings/tasker/internal/app";
+import type { Build, Paths } from "../bindings/tasker/internal/app/models";
+import type {
+  Counts,
+  Record as NoteRecord,
+  Notebook,
+  Tag,
+} from "../bindings/tasker/internal/index/models";
+import type { Note, Stats } from "../bindings/tasker/internal/notes/models";
 
-export type { NoteRecord, Notebook, Tag, Note };
+export type { Build, Counts, NoteRecord, Notebook, Paths, Stats, Tag, Note };
 
 /**
  * Единственная точка, через которую фронтенд говорит с Go.
@@ -39,6 +45,7 @@ export const api = {
   get: (id: string) => Notes.Get(id),
   notebooks: () => Notes.Notebooks().then(nonNull),
   tags: () => Notes.Tags().then(nonNull),
+  counts: () => Notes.Counts(),
   save: (id: string, title: string, body: string) => Notes.Save(id, title, body),
   setStatus: (id: string, status: string) => Notes.SetStatus(id, status),
   trash: (id: string) => Notes.Trash(id),
@@ -56,7 +63,30 @@ export const api = {
   saveSettings: (value: UISettings) => Settings.Save(JSON.stringify(value)),
 
   loadKeymap: () => Keymap.Load(),
+  saveKeymap: (value: unknown) => Keymap.Save(JSON.stringify(value)),
+  resetKeymap: () => Keymap.Reset(),
   keymapPath: () => Keymap.Path(),
+
+  // Сведения и настройки уровня приложения.
+  stats: () => Info.Stats(),
+  rebuildIndex: () => Info.Rebuild(),
+  paths: () => Info.Paths(),
+  build: () => Info.Build(),
+  onBattery: () => Info.OnBattery(),
+  revealPath: (path: string) => Info.Reveal(path),
+
+  // Хранилище: какая папка открыта и как сменить.
+  currentVault: () => Vaults.Current(),
+  recentVaults: () => Vaults.Recent().then(nonNull),
+  chooseVault: () => Vaults.Choose(),
+  switchVault: (path: string) => Vaults.Switch(path),
+  forgetVault: (path: string) => Vaults.Forget(path),
+  revealVault: (path: string) => Vaults.Reveal(path),
+  restart: () => Vaults.Restart(),
+
+  // История: окно автокоммита живёт в настройках интерфейса и приезжает сюда.
+  configureGit: (seconds: number) => Git.Configure(seconds),
+  commitNow: () => Git.CommitNow(),
 };
 
 /** Имена событий из SPEC §6. Совпадают с константами в internal/app. */

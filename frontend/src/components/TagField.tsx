@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { addTag, autoColor, suggestTags, tagColor, tagPalette } from "../tags";
+import { addTag, autoColor, suggestTags, tagColor, tagPalette, tagStyle } from "../tags";
 
 type Props = {
   tags: string[];
@@ -34,48 +34,55 @@ export function TagField({ tags, known, onChange, colors, onColor }: Props) {
 
   return (
     <div className="tagfield">
-      {tags.map((tag) => (
-        <span key={tag} className="chip" data-color={tagColor(tag, colors)}>
-          {/* Щелчок по имени открывает палитру: отдельной кнопки «цвет» нет,
-              а само имя ничего другого не делает. */}
-          <button className="chip__name" onClick={() => setPainting(painting === tag ? null : tag)}>
-            #{tag}
-          </button>
-          <button
-            className="chip__remove"
-            aria-label={`убрать ${tag}`}
-            onClick={() => onChange(tags.filter((other) => other !== tag))}
-          >
-            ×
-          </button>
+      {tags.map((tag) => {
+        const color = tagColor(tag, colors);
+        return (
+          <span key={tag} className="chip" style={tagStyle(color)}>
+            {/* Щелчок по имени открывает палитру: отдельной кнопки «цвет» нет,
+                а само имя ничего другого не делает. */}
+            <button
+              className="chip__name"
+              onClick={() => setPainting(painting === tag ? null : tag)}
+            >
+              #{tag}
+            </button>
+            <button
+              className="chip__remove"
+              aria-label={`убрать ${tag}`}
+              onClick={() => onChange(tags.filter((other) => other !== tag))}
+            >
+              ×
+            </button>
 
-          {painting === tag && (
-            <div className="palette">
-              <button
-                className="palette__auto"
-                onClick={() => {
-                  onColor(tag, autoColor);
-                  setPainting(null);
-                }}
-              >
-                авто
-              </button>
-              {Array.from({ length: tagPalette }, (_, color) => (
+            {painting === tag && (
+              <div className="palette">
                 <button
-                  key={color}
-                  className="palette__swatch"
-                  data-color={color}
-                  aria-label={`цвет ${color}`}
+                  className="palette__auto"
                   onClick={() => {
-                    onColor(tag, color);
+                    onColor(tag, autoColor);
                     setPainting(null);
                   }}
-                />
-              ))}
-            </div>
-          )}
-        </span>
-      ))}
+                >
+                  вывести из имени
+                </button>
+                {Array.from({ length: tagPalette }, (_, value) => (
+                  <button
+                    key={value}
+                    className="palette__swatch"
+                    style={tagStyle(value)}
+                    aria-selected={value === color}
+                    aria-label={`цвет ${value}`}
+                    onClick={() => {
+                      onColor(tag, value);
+                      setPainting(null);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </span>
+        );
+      })}
 
       <div className="tagfield__entry">
         <input
@@ -83,6 +90,7 @@ export function TagField({ tags, known, onChange, colors, onColor }: Props) {
           placeholder="+ тег"
           value={query}
           spellCheck={false}
+          autoCorrect="off"
           onChange={(event) => {
             setQuery(event.target.value);
             setOpen(true);
@@ -102,13 +110,23 @@ export function TagField({ tags, known, onChange, colors, onColor }: Props) {
             }
           }}
         />
-        {open && suggestions.length > 0 && (
-          <div className="tagfield__suggestions">
+        {open && (suggestions.length > 0 || query.trim() !== "") && (
+          <div className="menu menu--sort" style={{ left: 0, right: "auto" }}>
             {suggestions.map((tag) => (
-              <button key={tag} className="row" onClick={() => commit(tag)}>
-                <span className="row__label">#{tag}</span>
+              <button key={tag} className="menu__item" onClick={() => commit(tag)}>
+                <span className="row__swatch" style={tagStyle(tagColor(tag, colors))} />
+                <span className="menu__label">{tag}</span>
               </button>
             ))}
+            {query.trim() !== "" && !suggestions.includes(query.trim()) && (
+              <button
+                className="menu__item"
+                style={{ color: "var(--color-accent)" }}
+                onClick={() => commit(query)}
+              >
+                <span className="menu__label">+ Создать «{query.trim()}»</span>
+              </button>
+            )}
           </div>
         )}
       </div>

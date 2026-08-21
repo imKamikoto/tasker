@@ -2,38 +2,70 @@
 @import "../../theme/palette.css";
 
 :root {
-  /* Токены, которых в палитре нет: она описывает цвета, а не интерфейс. */
-  --color-fg: hsl(var(--hsl-fg));
-  --color-fg-muted: hsl(var(--hsl-fg-muted) / 0.62);
-  --color-border: hsl(var(--hsl-base3) / 0.1);
+  /*
+   * Масштаб текста. Растёт только кегль — колонки сохраняют ширину, поэтому
+   * на экране остаётся столько же колонок, просто читать легче. Значение
+   * ставит App из настроек; единица — исходный размер.
+   */
+  --ui-scale: 1;
 
-  /* Высота строки списка фиксирована: на ней стоит виртуализация. Совпадает
-     с rowHeight в NoteList. */
+  /* Высота строки списка. Растёт вместе с текстом, иначе крупный кегль в неё
+     не влезает. Значение в пикселях ставит App: на нём стоит арифметика
+     виртуализации, и считать его в двух местах нельзя. */
   --row-height: 104px;
 
   --sidebar-width: 216px;
   --list-width: 320px;
 
+  /* Верхняя полоса окна отдана под перетаскивание за скрытый заголовок
+     (MacTitleBarHiddenInset). Одинаковая во всех трёх колонках. */
+  --drag-strip: 42px;
+
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+
+  /* Кегль и интерлиньяж тела заметки. Их правят в настройках, поэтому они
+     переменные, а не литералы внутри темы CodeMirror. */
+  /* Запасные значения: настоящие ставит App из настроек, уже умноженные
+     на масштаб. */
+  --editor-font-size: calc(13px * var(--ui-scale));
+  --editor-line-height: 1.7;
+
+  /* Пунктир-разделитель: он же в заголовках секций, полосе списка и под
+     тегами. Собран один раз, чтобы шаг был везде одинаковый. */
+  --rule-dashed: repeating-linear-gradient(90deg, var(--color-border) 0 2px, transparent 2px 4px);
+
+  --shadow-modal: 0 28px 70px hsl(0 0% 0% / 0.7);
+  --shadow-popover: 0 18px 44px hsl(0 0% 0% / 0.65);
 }
 
 * {
   box-sizing: border-box;
 }
 
+/*
+ * Окно не страница: документ не прокручивается и не пружинит.
+ *
+ * WebKit оттягивает документ за край, даже когда прокручивать нечего, и
+ * показывает подложку вебвью — а она белая, потому что body прозрачный ради
+ * полупрозрачного окна. Со стороны это выглядит как «пролистал за пределы
+ * экрана». Прокрутка живёт внутри колонок, документу она не нужна вовсе.
+ */
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
+/* Фон рисуют панели, а не body: окно полупрозрачное, и сплошная заливка тела
+   перекрыла бы обои раньше, чем до них дойдёт очередь. */
 body {
-  background: var(--color-bg);
+  background: transparent;
   color: var(--color-fg);
-  font: 13px/1.5 var(--font-ui);
-  /* Системный ввод заглушён насовсем — см. решение по фазе 0. */
+  font: calc(13px * var(--ui-scale))/1.5 var(--font-ui);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -42,74 +74,117 @@ body {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1px var(--list-width) 1px 1fr;
   height: 100%;
+  /* Основание для всего, что лежит между колонками, — прежде всего для
+     разделителей. Они в ячейках сетки, а не в панелях, и с прозрачным body
+     их полупрозрачный цвет ложился прямо на подложку окна: вместо тонкого
+     стыка получалась сплошная белая полоса. */
+  background: hsl(var(--hsl-bg) / var(--panel-alpha));
 }
 
 .pane {
-  overflow-y: auto;
   height: 100%;
+  min-height: 0;
 }
 
-/* Верхние 42 пикселя окна отданы под перетаскивание за скрытый заголовок
-   (MacTitleBarHiddenInset). Ничего кликабельного там быть не должно, иначе
-   нажатие уедет в перетаскивание окна вместо элемента. */
-.pane--sidebar,
-.pane--list {
-  padding-top: 42px;
+/* Пружина внутри колонки — обычное поведение macOS и мешать ей незачем.
+   А вот дотягиваться до документа она не должна: там её встретит подложка
+   окна. contain оставляет пружину списку и обрывает цепочку выше. */
+.notes,
+.sidebar__scroll,
+.picker__list,
+.prefs__content,
+.trashed-body,
+.cm-scroller {
+  overscroll-behavior: contain;
 }
 
-.pane--sidebar {
-  background: var(--color-bg-shadow);
+/*
+ * Полоса перетаскивания окна.
+ *
+ * Тянется благодаря --wails-draggable: рантайм Wails смотрит вычисленный
+ * стиль элемента под курсором. Свойство наследуется, поэтому всё, что кладут
+ * на полосу, обязано отменить его у себя — иначе нажатие уедет в
+ * перетаскивание вместо элемента.
+ */
+.drag-strip {
+  height: var(--drag-strip);
+  flex: none;
+  --wails-draggable: drag;
 }
 
-.pane--list {
-  background: var(--color-bg);
+/* Полоса сайдбара — единственная с содержимым: слева системный светофор,
+   справа шестерёнка. Отступ слева оставлен под светофор, его рисует система. */
+.drag-strip--sidebar {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px 0 78px;
 }
 
-/* Полоса сортировок: три поля, повторный щелчок переворачивает порядок. */
-.sortbar {
+.gear {
+  --wails-draggable: no-drag;
   display: flex;
-  gap: 2px;
-  padding: 5px 12px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.sortbar__field {
-  padding: 2px 7px;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border: 0;
-  border-radius: 3px;
+  border-radius: 6px;
   background: none;
-  color: var(--color-fg-muted);
-  font: inherit;
-  font-size: 11px;
+  color: var(--color-fg-dim);
+  /* Вариант отображения текстовый: без него macOS рисует шестерёнку цветной
+     эмодзи, и она выпадает из монохромного интерфейса. */
+  font: calc(19px * var(--ui-scale))/1 var(--font-ui);
   cursor: default;
 }
 
-.sortbar__field:hover {
-  background: var(--color-oak-100);
+.gear:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-fg-heading);
 }
 
-.sortbar__field[aria-selected="true"] {
-  background: var(--color-oak-200);
-  color: var(--color-oak-800);
+.gear[aria-expanded="true"] {
+  background: var(--color-bg-selected);
+  color: var(--color-accent);
 }
 
-.sortbar__arrow {
-  margin-left: 4px;
+/* Панели красятся с альфой из настроек и размывают то, что за ними. При
+   --panel-alpha: 1 это обычная сплошная заливка, и блюр ничего не стоит. */
+.pane--sidebar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: hsl(var(--hsl-bg-sidebar) / var(--panel-alpha));
+  backdrop-filter: blur(var(--panel-blur)) saturate(170%);
 }
 
-/* Прокручивается сам список, а не колонка: поле поиска остаётся на месте. */
-.notes {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+.pane--list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: hsl(var(--hsl-bg) / var(--panel-alpha));
+  backdrop-filter: blur(var(--panel-blur)) saturate(170%);
 }
 
 .pane--editor {
-  background: var(--color-bg);
-  padding: 42px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: hsl(var(--hsl-bg) / var(--editor-alpha));
+  backdrop-filter: blur(var(--panel-blur)) saturate(170%);
+  padding: 0 40px;
+}
+
+/* Дизер-текстура: еле заметная сетка, чтобы прозрачные панели не выглядели
+   плоской плёнкой поверх обоев. */
+:root[data-dither="true"] .pane--sidebar,
+:root[data-dither="true"] .pane--list,
+:root[data-dither="true"] .pane--editor {
+  background-image: repeating-linear-gradient(
+    45deg,
+    hsl(var(--hsl-fg) / 0.014) 0 1px,
+    transparent 1px 3px
+  );
 }
 
 /* Разделитель: тянется мышью, но видно его только при наведении. */
@@ -125,179 +200,141 @@ body {
   inset: 0 -3px;
 }
 
-.splitter:hover,
+/* Под курсором стык слегка проявляется — за него можно тянуть. Серым, а не
+   акцентом: акцент в этом интерфейсе означает «здесь сейчас работают», а
+   мышь, проехавшая мимо, ничего не означает. */
+.splitter:hover {
+  background: hsl(var(--hsl-fg) / 0.22);
+}
+
 .splitter[data-dragging="true"] {
-  background: var(--color-oak-200);
+  background: var(--color-accent);
 }
 
-.section-title--actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+/* ───────────────────────────── сайдбар ───────────────────────────── */
 
-.section-title__add,
-.row__more,
-.listbar__add {
-  border: 0;
-  padding: 0 4px;
-  background: none;
-  color: var(--color-fg-muted);
-  font: inherit;
-  cursor: default;
-}
-
-.section-title__add:hover,
-.row__more:hover,
-.listbar__add:hover {
-  color: var(--color-oak-600);
-}
-
-/* Многоточие показывается только под курсором: в спокойном состоянии сайдбар
-   должен оставаться списком имён, а не панелью кнопок. */
-.row__more {
-  visibility: hidden;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.row:hover .row__more {
-  visibility: visible;
-}
-
-.listbar {
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.listbar .search {
-  flex: 1;
-  border-bottom: 0;
-}
-
-.listbar__add {
-  padding: 0 12px;
-  font-size: 16px;
-}
-
-.nameinput {
-  width: calc(100% - 24px);
-  margin: 2px 12px;
-  padding: 3px 6px;
-  border: 1px solid var(--color-oak-200);
-  border-radius: 3px;
-  background: var(--color-bg-elevated);
-  color: var(--color-fg);
-  font: inherit;
-}
-
-.nameinput:focus {
-  outline: none;
-  border-color: var(--color-oak);
-}
-
-/* Меню ноутбука. */
-.menu {
-  position: absolute;
-  top: 100%;
-  right: 8px;
-  z-index: 8;
+.sidebar__group {
   display: flex;
   flex-direction: column;
-  min-width: 170px;
-  padding: 4px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  background: var(--color-bg-elevated);
-  box-shadow: 0 8px 24px hsl(var(--hsl-bg-shadow) / 0.6);
+  gap: 1px;
+  padding: 0 8px;
 }
 
-.menu button {
-  border: 0;
-  padding: 5px 8px;
-  border-radius: 3px;
-  background: none;
-  color: var(--color-fg);
-  font: inherit;
-  text-align: left;
-  cursor: default;
+.sidebar__group--top {
+  padding-top: 6px;
 }
 
-.menu button:hover {
-  background: var(--color-oak-200);
+/* Прокручивается середина сайдбара: верхние пункты и корзина остаются
+   на месте, сколько бы ни было ноутбуков. */
+.sidebar__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
-.section-title {
-  padding: 14px 16px 6px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--color-fg-muted);
+.sidebar__foot {
+  flex: none;
+  padding: 8px;
+  border-top: 1px solid var(--color-border);
 }
 
-.row {
+.section {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 5px 16px;
+  gap: 6px;
+  padding: 20px 14px 6px;
+}
+
+.section__label {
+  font: 600 calc(10px * var(--ui-scale))/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-fg-dim);
+}
+
+.section__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-dashed);
+}
+
+.section__add {
   border: 0;
+  padding: 0;
   background: none;
-  color: var(--color-fg);
-  font: inherit;
-  text-align: left;
+  color: var(--color-fg-dim);
+  font: calc(12px * var(--ui-scale))/1 var(--font-mono);
   cursor: default;
+}
+
+.section__add:hover {
+  color: var(--color-accent);
 }
 
 .row {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--color-fg);
+  font: calc(13px * var(--ui-scale))/1 var(--font-ui);
+  text-align: left;
+  cursor: default;
+}
+
+/* Верхние пункты чуть выше строк дерева: они не список, а разделы. */
+.row--top {
+  height: 28px;
 }
 
 .row:hover {
-  background: var(--color-oak-100);
+  background: var(--color-bg-hover);
 }
 
 .row[aria-selected="true"] {
-  background: var(--color-oak-400);
+  background: var(--color-bg-selected);
+  color: var(--color-fg-heading);
+}
+
+.row[aria-selected="true"] .row__glyph,
+.row[aria-selected="true"] .row__count {
+  color: var(--color-accent);
+}
+
+.row__glyph {
+  width: 14px;
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+  text-align: left;
+  cursor: default;
+}
+
+.row__glyph--accent {
+  color: var(--color-accent);
+}
+
+button.row__glyph:hover {
+  color: var(--color-accent);
 }
 
 .row__label {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.row__count {
-  color: var(--color-fg-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Треугольник сворачивания: место занимает всегда, чтобы подписи стояли
-   ровным столбцом независимо от наличия детей. */
-.row__twisty {
-  width: 12px;
-  flex: none;
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--color-fg-muted);
-  font-size: 9px;
-  line-height: 1;
-  cursor: default;
-}
-
-.row__twisty:disabled {
-  visibility: hidden;
-}
-
-.row__twisty:hover:not(:disabled) {
-  color: var(--color-oak-600);
-}
-
-/* Подпись — кнопка выбора ноутбука, поэтому сбрасываем вид кнопки. */
 button.row__label {
   border: 0;
   padding: 0;
@@ -308,269 +345,185 @@ button.row__label {
   cursor: default;
 }
 
-.note {
-  display: block;
-  width: 100%;
-  height: var(--row-height);
-  padding: 10px 16px;
-  overflow: hidden;
+.row__count {
+  flex: none;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Квадратик цвета тега вместо решётки: имя тега и так начинается с буквы,
+   а цвет — единственное, что отличает строки друг от друга. */
+.row__swatch {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 2px;
+  background: hsl(var(--tag-hue) var(--tag-s) var(--tag-l));
+}
+
+/* Многоточие показывается только под курсором: в спокойном состоянии сайдбар
+   должен оставаться списком имён, а не панелью кнопок. */
+.row__more {
+  flex: none;
+  visibility: hidden;
   border: 0;
-  border-bottom: 1px solid var(--color-border);
+  padding: 0 2px;
   background: none;
-  color: var(--color-fg);
-  font: inherit;
-  text-align: left;
+  color: var(--color-fg-muted);
+  font: calc(12px * var(--ui-scale))/1 var(--font-mono);
   cursor: default;
 }
 
-.note:hover {
-  background: var(--color-oak-100);
+.row:hover .row__more {
+  visibility: visible;
 }
 
-.note[aria-selected="true"] {
-  background: var(--color-oak-400);
+.row__more:hover {
+  color: var(--color-accent);
 }
 
-.note__title {
+/* Цель перетаскивания: пунктирная рамка на акценте, а счётчик подменяется
+   на «сколько прилетит». */
+.row[data-drop="true"] {
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--color-accent-line);
+}
+
+.row[data-drop="true"] .row__count {
+  color: var(--color-accent);
+}
+
+/* ───────────────────────────── список ───────────────────────────── */
+
+.listbar {
+  flex: none;
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-weight: 500;
-  margin-bottom: 3px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 10px;
 }
 
-.note__title span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.note__excerpt {
-  color: var(--color-fg-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.note__meta {
+.listbar__row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 5px;
-  color: var(--color-fg-muted);
-  font-size: 11px;
 }
 
-.tag {
-  color: var(--color-oak-600);
-}
-
-.status {
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: var(--color-oak-200);
-  color: var(--color-oak-800);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.pin {
-  color: var(--color-oak);
-}
-
-.search {
-  width: 100%;
-  padding: 8px 16px;
-  border: 0;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-shadow);
-  color: var(--color-fg);
-  font: inherit;
-}
-
-.search::placeholder {
-  color: var(--color-fg-muted);
-}
-
-.search:focus {
-  outline: none;
-  background: var(--color-bg-elevated);
-}
-
-.empty {
-  padding: 24px 16px;
-  color: var(--color-fg-muted);
-}
-
-.error {
-  margin: 0 16px 16px;
-  padding: 10px 12px;
-  border-left: 2px solid var(--color-yellow);
-  background: var(--color-bg-elevated);
-  color: var(--color-fg-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  white-space: pre-wrap;
-}
-
-.editor__title {
-  width: 100%;
-  border: 0;
-  background: none;
-  color: var(--color-fg);
-  font: 500 22px/1.3 var(--font-ui);
-  margin-bottom: 4px;
-}
-
-.editor__title:focus {
-  outline: none;
-}
-
-.editor__meta {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-fg-muted);
-  font-size: 11px;
-}
-
-/* Редактор занимает всё, что осталось от колонки: у CodeMirror свой скролл. */
-.pane--editor {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.editor__body {
+.listbar__row .search {
   flex: 1;
-  min-height: 0;
-  padding-top: 12px;
+  min-width: 0;
 }
 
-.cm-host {
-  height: 100%;
-}
-
-.editor__state {
-  margin-left: auto;
-  color: var(--color-fg-muted);
-}
-
-.editor__state[data-state="dirty"] {
-  color: var(--color-oak-600);
-}
-
-.editor__state[data-state="failed"] {
-  color: var(--color-yellow);
-}
-
-/* Файл изменён снаружи: обе стороны — чья-то работа, поэтому выбирает человек. */
-.conflict {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 8px 12px;
-  border-left: 2px solid var(--color-oak);
-  background: var(--color-bg-elevated);
-  color: var(--color-fg);
-}
-
-.conflict span {
-  flex: 1;
-}
-
-.conflict button {
-  padding: 3px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-oak-200);
-  color: var(--color-oak-800);
-  font: inherit;
-  cursor: default;
-}
-
-.conflict button:hover {
-  background: var(--color-oak-400);
-}
-
-/* Тело заметки в корзине: видно, но править нельзя. */
-.trashed-body {
-  color: var(--color-fg-muted);
-  font-family: var(--font-mono);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-y: auto;
-}
-
-/* Выбор ноутбука для переноса. */
-.overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 15vh;
-  background: hsl(var(--hsl-bg-shadow) / 0.6);
-  z-index: 10;
-}
-
-.picker {
-  width: min(420px, 80vw);
-  max-height: 60vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+/* Кнопка новой заметки — своя, а не значок внутри поля поиска: одинаковой
+   высоты с ним, но отдельная, чтобы не читалась как часть поиска. */
+.listbar__new {
+  width: 28px;
+  height: 28px;
+  flex: none;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-bg-elevated);
-  box-shadow: 0 12px 32px hsl(var(--hsl-bg-shadow) / 0.7);
+  color: var(--color-fg-muted);
+  font: calc(15px * var(--ui-scale))/1 var(--font-ui);
+  cursor: default;
 }
 
-.picker__input {
-  padding: 10px 14px;
+.listbar__new:hover {
+  color: var(--color-fg-heading);
+  border-color: var(--color-accent-line);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+}
+
+.search__glyph {
+  flex: none;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-accent);
+}
+
+/* Подсветка синтаксиса запроса: input не умеет красить свои куски, поэтому
+   под ним лежит зеркало с теми же метриками, а у самого поля текст прозрачный.
+   Каретка остаётся видимой — её цвет задаётся отдельно. */
+.search__field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.search__input,
+.search__ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  font: calc(12px * var(--ui-scale))/1 var(--font-mono);
+  white-space: pre;
+  overflow: hidden;
+}
+
+.search__input {
+  width: 100%;
   border: 0;
-  border-bottom: 1px solid var(--color-border);
+  padding: 0;
   background: none;
-  color: var(--color-fg);
-  font: inherit;
+  color: transparent;
+  caret-color: var(--color-accent);
 }
 
-.picker__input:focus {
+.search__input:focus {
   outline: none;
 }
 
-.picker__list {
-  overflow-y: auto;
+.search__input::placeholder {
+  color: var(--color-fg-dim);
 }
 
-/* Теги заметки: чипы плюс поле добавления с подсказками. */
-.tagfield {
+.search__ghost {
+  pointer-events: none;
+  color: var(--color-fg);
+}
+
+.search__ghost [data-kind="accent"] {
+  color: var(--color-accent);
+}
+
+.search__ghost [data-kind="bad"] {
+  color: var(--color-danger);
+  text-decoration: underline wavy var(--color-danger);
+  text-underline-offset: 3px;
+}
+
+.listbar__meta {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding-top: 10px;
+  gap: 10px;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 4px 1px 7px;
-  border-radius: 3px;
-  background: var(--color-oak-100);
-  color: var(--color-oak-600);
-  font-size: 11px;
+.listbar__count {
+  color: var(--color-accent);
 }
 
-/* Оттенок по имени тега: палитра на 14 значений (SPEC §8.2). Крутим тон
-   вокруг дубового, чтобы теги отличались, но не выпадали из темы. */
-.chip__name {
+.listbar__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-dashed);
+}
+
+.listbar__sort {
+  position: relative;
   border: 0;
   padding: 0;
   background: none;
@@ -579,28 +532,406 @@ button.row__label {
   cursor: default;
 }
 
-.chip[data-color="1"] { color: hsl(14deg 45% 66%); }
-.chip[data-color="2"] { color: hsl(40deg 55% 64%); }
-.chip[data-color="3"] { color: hsl(66deg 35% 60%); }
-.chip[data-color="4"] { color: hsl(92deg 32% 60%); }
-.chip[data-color="5"] { color: hsl(118deg 32% 62%); }
-.chip[data-color="6"] { color: hsl(146deg 35% 60%); }
-.chip[data-color="7"] { color: hsl(172deg 35% 58%); }
-.chip[data-color="8"] { color: hsl(196deg 40% 62%); }
-.chip[data-color="9"] { color: hsl(214deg 45% 68%); }
-.chip[data-color="10"] { color: hsl(242deg 40% 70%); }
-.chip[data-color="11"] { color: hsl(272deg 35% 68%); }
-.chip[data-color="12"] { color: hsl(302deg 32% 66%); }
-.chip[data-color="13"] { color: hsl(330deg 42% 68%); }
+.listbar__sort:hover {
+  color: var(--color-fg-muted);
+}
 
+/* Прокручивается сам список, а не колонка: поле поиска остаётся на месте. */
+.notes {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.note {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: var(--row-height);
+  padding: 12px 14px;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.note:hover {
+  background: var(--color-bg-hover);
+}
+
+.note[aria-selected="true"] {
+  background: var(--color-bg-selected);
+  border-left: 2px solid var(--color-accent);
+  padding-left: 12px;
+}
+
+.note__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.note__mark {
+  flex: none;
+  font: calc(12px * var(--ui-scale))/calc(20px * var(--ui-scale)) var(--font-mono);
+  color: var(--color-fg-faint);
+}
+
+.note__mark[data-pinned="true"] {
+  color: var(--color-status-hold);
+}
+
+.note__title {
+  flex: 1;
+  min-width: 0;
+  font: 600 calc(14px * var(--ui-scale))/calc(20px * var(--ui-scale)) var(--font-ui);
+  color: var(--color-fg-heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Высота превью зафиксирована, а не выведена из текста: иначе строка без
+   превью поднимает метаполосу и колонка перестаёт быть сеткой. */
+.note__excerpt {
+  margin-top: 4px;
+  height: calc(34px * var(--ui-scale));
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font: calc(12px * var(--ui-scale))/calc(17px * var(--ui-scale)) var(--font-ui);
+  color: var(--color-fg-muted);
+}
+
+/* Метаполоса не переносится и не сжимается: строка списка ровно 104 пикселя,
+   и перенос статуса на вторую строку ломает не вид, а виртуализацию. Лишнее
+   уезжает за правый край вместе с тегами. */
+.note__meta {
+  margin-top: 6px;
+  height: calc(16px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  font: calc(11px * var(--ui-scale))/calc(16px * var(--ui-scale)) var(--font-mono);
+  color: var(--color-fg-dim);
+  white-space: nowrap;
+}
+
+.note__meta > * {
+  flex: none;
+}
+
+/* Сжимается только группа тегов: у остальных кусков нечего отрезать, а у
+   неё есть счётчик «+N», который честно говорит, сколько не поместилось. */
+.note__meta > .note__tags {
+  flex: 0 1 auto;
+}
+
+.note__sep {
+  color: var(--color-fg-faint);
+}
+
+.note__progress {
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+/*
+ * Теги в метаполосе.
+ *
+ * Не прижаты к правому краю: раньше `margin-left: auto` отбрасывал их туда,
+ * и они читались как отдельная колонка, обрезанная краем строки. Теперь идут
+ * подряд с остальным, как ещё один кусок метаполосы.
+ *
+ * Растворяющегося края тоже нет — он выглядел как «затёрто», а не как
+ * «здесь ещё есть». Не влезло — имена обрезаются многоточием, а счётчик
+ * остальных остаётся на месте: он узкий и сжиматься ему нечего.
+ */
+.note__tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* Не flex: многоточие у переполнения работает только на обычном блоке, а на
+   флекс-контейнере молча превращается в жёсткий обрез посреди буквы. */
+.note__tags-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note__tag + .note__tag {
+  margin-left: 6px;
+}
+
+.note__tags-more {
+  flex: none;
+  color: var(--color-fg-dim);
+}
+
+.note__tag {
+  color: hsl(var(--tag-hue) var(--tag-s) var(--tag-l));
+}
+
+/* Статусы различаются цветом, а не только словом: между active и dropped
+   разница должна читаться боковым зрением. */
+.note__status[data-status="active"] {
+  color: var(--color-status-active);
+}
+.note__status[data-status="onHold"] {
+  color: var(--color-status-hold);
+}
+.note__status[data-status="completed"] {
+  color: var(--color-status-done);
+}
+.note__status[data-status="dropped"] {
+  color: var(--color-status-dropped);
+}
+
+/* Завершённое зачёркнуто, брошенное целиком уходит в фон. */
+.note[data-status="completed"] .note__title {
+  color: var(--color-fg-muted);
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--hsl-fg) / 0.25);
+}
+
+.note[data-status="dropped"] {
+  color: var(--color-fg-dim);
+}
+
+.note[data-status="dropped"] .note__title,
+.note[data-status="dropped"] .note__excerpt {
+  color: var(--color-fg-dim);
+}
+
+/*
+ * Заметка от агента. Метка тройная — глиф, пунктирная полоса слева и бейдж, —
+ * потому что это главное отличие Tasker от блокнота: работу, сделанную не
+ * человеком, надо видеть, не вчитываясь.
+ */
+.note[data-origin="agent"] {
+  background-image: linear-gradient(90deg, hsl(var(--hsl-accent) / 0.07), transparent 60%);
+}
+
+.note[data-origin="agent"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  opacity: 0.75;
+  background: repeating-linear-gradient(180deg, var(--color-accent) 0 2px, transparent 2px 5px);
+}
+
+.note[data-origin="agent"] .note__mark {
+  color: var(--color-accent);
+}
+
+.note[data-origin="agent"] .note__excerpt {
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--ui-scale));
+  line-height: 17px;
+}
+
+.note__agent {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 3px;
+  color: var(--color-accent);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.08em;
+}
+
+/* Пометка мультивыбора. Строка остаётся той же высоты: на ней стоит
+   виртуализация, и менять её ради галочки нельзя. */
+.note__check {
+  flex: none;
+  font: calc(12px * var(--ui-scale))/calc(20px * var(--ui-scale)) var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+.note[aria-selected="true"] .note__check {
+  color: var(--color-accent);
+}
+
+/* ───────────────────────────── редактор ───────────────────────────── */
+
+.editor__title {
+  flex: none;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-heading);
+  font: 600 calc(26px * var(--ui-scale))/calc(34px * var(--ui-scale)) var(--font-ui);
+  letter-spacing: -0.01em;
+}
+
+.editor__title:focus {
+  outline: none;
+}
+
+.editor__meta {
+  flex: none;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+.editor__book {
+  color: var(--color-fg-muted);
+}
+
+.meta__sep {
+  color: var(--color-fg-faint);
+}
+
+.editor__hints {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hint {
+  color: var(--color-fg-dim);
+}
+
+.editor__state[data-state="clean"] {
+  color: var(--color-status-active);
+}
+
+.editor__state[data-state="dirty"],
+.editor__state[data-state="saving"] {
+  color: var(--color-fg-muted);
+}
+
+.editor__state[data-state="failed"] {
+  color: var(--color-danger);
+}
+
+/* Плашка статуса красится в его же цвет, разбавленный до фона. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 3px;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  cursor: default;
+  background: var(--color-bg-badge);
+  color: var(--color-fg-muted);
+}
+
+.status-pill[data-status="active"] {
+  background: hsl(var(--hsl-status-active) / 0.14);
+  color: var(--color-status-active);
+}
+
+.status-pill[data-status="onHold"] {
+  background: hsl(var(--hsl-status-hold) / 0.14);
+  color: var(--color-status-hold);
+}
+
+.editor__rule {
+  flex: none;
+  margin-top: 14px;
+  height: 1px;
+  background: var(--rule-dashed);
+}
+
+.editor__body {
+  flex: 1;
+  min-height: 0;
+  margin-top: 16px;
+}
+
+.cm-host {
+  height: 100%;
+}
+
+/* Строка состояния под текстом: режим вима слева, справочное справа.
+   Растянута на всю ширину колонки, поэтому вылезает из её отступов. */
+.editor__status {
+  flex: none;
+  margin: 0 -40px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 18px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-muted);
+}
+
+.editor__mode {
+  padding: 0 6px;
+  border-radius: 2px;
+  background: var(--color-bg-badge);
+  color: var(--color-fg-heading);
+}
+
+.editor__status-right {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+}
+
+/* ───────────────────────────── теги заметки ───────────────────────────── */
+
+.tagfield {
+  flex: none;
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px 2px 8px;
+  border-radius: 3px;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  background: hsl(var(--tag-hue) var(--tag-s) var(--tag-l) / var(--tag-alpha));
+  color: hsl(var(--tag-hue) var(--tag-s) var(--tag-l));
+}
+
+.chip__name,
 .chip__remove {
   border: 0;
-  padding: 0 2px;
+  padding: 0;
   background: none;
   color: inherit;
   font: inherit;
-  opacity: 0.45;
   cursor: default;
+}
+
+.chip__remove {
+  opacity: 0.5;
 }
 
 .chip__remove:hover {
@@ -612,67 +943,54 @@ button.row__label {
 }
 
 .tagfield__input {
-  width: 72px;
-  border: 0;
+  width: 76px;
+  padding: 2px 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: 3px;
   background: none;
   color: var(--color-fg-muted);
-  font: inherit;
-  font-size: 11px;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
 }
 
 .tagfield__input:focus {
   outline: none;
+  border-color: var(--color-accent-line);
   color: var(--color-fg);
 }
 
-.tagfield__suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 5;
-  min-width: 160px;
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  background: var(--color-bg-elevated);
-  box-shadow: 0 8px 24px hsl(var(--hsl-bg-shadow) / 0.6);
+.tagfield__input::placeholder {
+  color: var(--color-fg-dim);
 }
 
-/* Выбор цвета тега: палитра на 14 значений плюс «авто» (SPEC §8.2). */
-.chip {
-  position: relative;
-}
-
+/* Палитра цветов тега: 7×2 плюс «авто» отдельной строкой. */
 .palette {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
   z-index: 6;
   display: grid;
-  grid-template-columns: repeat(5, 16px);
-  gap: 4px;
+  grid-template-columns: repeat(7, 16px);
+  gap: 5px;
   padding: 8px;
   border: 1px solid var(--color-border);
-  border-radius: 5px;
+  border-radius: 7px;
   background: var(--color-bg-elevated);
-  box-shadow: 0 8px 24px hsl(var(--hsl-bg-shadow) / 0.6);
+  box-shadow: var(--shadow-popover);
 }
 
 .palette__auto {
   grid-column: 1 / -1;
   border: 0;
-  padding: 2px;
+  padding: 3px;
   border-radius: 3px;
-  background: var(--color-oak-100);
+  background: var(--color-bg-badge);
   color: var(--color-fg-muted);
-  font: inherit;
-  font-size: 10px;
+  font: calc(10px * var(--ui-scale))/1 var(--font-mono);
   cursor: default;
 }
 
 .palette__auto:hover {
-  color: var(--color-fg);
+  color: var(--color-fg-heading);
 }
 
 .palette__swatch {
@@ -681,19 +999,1243 @@ button.row__label {
   border: 0;
   border-radius: 3px;
   cursor: default;
+  background: hsl(var(--tag-hue) var(--tag-s) var(--tag-l));
 }
 
-.palette__swatch[data-color="0"] { background: var(--color-oak-600); }
-.palette__swatch[data-color="1"] { background: hsl(14deg 45% 66%); }
-.palette__swatch[data-color="2"] { background: hsl(40deg 55% 64%); }
-.palette__swatch[data-color="3"] { background: hsl(66deg 35% 60%); }
-.palette__swatch[data-color="4"] { background: hsl(92deg 32% 60%); }
-.palette__swatch[data-color="5"] { background: hsl(118deg 32% 62%); }
-.palette__swatch[data-color="6"] { background: hsl(146deg 35% 60%); }
-.palette__swatch[data-color="7"] { background: hsl(172deg 35% 58%); }
-.palette__swatch[data-color="8"] { background: hsl(196deg 40% 62%); }
-.palette__swatch[data-color="9"] { background: hsl(214deg 45% 68%); }
-.palette__swatch[data-color="10"] { background: hsl(242deg 40% 70%); }
-.palette__swatch[data-color="11"] { background: hsl(272deg 35% 68%); }
-.palette__swatch[data-color="12"] { background: hsl(302deg 32% 66%); }
-.palette__swatch[data-color="13"] { background: hsl(330deg 42% 68%); }
+/* Двойное кольцо, а не рамка: рамка съела бы сам цвет на 16 пикселях. */
+.palette__swatch[aria-selected="true"] {
+  box-shadow:
+    0 0 0 2px var(--color-bg-elevated),
+    0 0 0 3px var(--color-fg);
+}
+
+/* ───────────────────────────── меню и поповеры ───────────────────────────── */
+
+.menu {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 180px;
+  padding: 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-popover);
+  font: calc(12px * var(--ui-scale))/1 var(--font-ui);
+}
+
+.menu--right {
+  top: 100%;
+  right: 8px;
+}
+
+.menu--sort {
+  top: calc(100% + 6px);
+  right: 0;
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--color-fg);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.menu__item:hover {
+  background: var(--color-bg-hover);
+}
+
+.menu__item[aria-selected="true"] {
+  background: var(--color-bg-badge);
+}
+
+.menu__item--danger {
+  color: var(--color-danger);
+}
+
+.menu__glyph {
+  width: 14px;
+  flex: none;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+.menu__glyph[data-status="active"] {
+  color: var(--color-status-active);
+}
+.menu__glyph[data-status="onHold"] {
+  color: var(--color-status-hold);
+}
+
+.menu__label {
+  flex: 1;
+}
+
+.menu__key {
+  flex: none;
+  font: calc(10px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+.menu__check {
+  flex: none;
+  color: var(--color-accent);
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+}
+
+/* Контекстное меню строки списка ставится по курсору, поэтому fixed. */
+.menu--context {
+  position: fixed;
+}
+
+/* ───────────────────────────── инлайн-ввод имени ───────────────────────────── */
+
+.nameinput {
+  width: calc(100% - 16px);
+  margin: 1px 8px;
+  padding: 3px 7px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 5px;
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+  font: calc(12px * var(--ui-scale))/1.4 var(--font-mono);
+  caret-color: var(--color-accent);
+}
+
+.nameinput:focus {
+  outline: none;
+}
+
+.nameinput__hint {
+  padding: 4px 14px 0;
+  font: calc(10px * var(--ui-scale))/1.4 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+/* ───────────────────────────── пустые состояния ───────────────────────────── */
+
+.empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  color: var(--color-fg-muted);
+}
+
+.empty--inline {
+  flex: none;
+  padding: 28px 16px;
+  font: calc(12px * var(--ui-scale))/1.5 var(--font-ui);
+}
+
+.empty__frame {
+  font: calc(11px * var(--ui-scale))/1.25 var(--font-mono);
+  color: var(--color-fg-faint);
+  white-space: pre;
+}
+
+.empty__title {
+  font: 600 calc(15px * var(--ui-scale))/1.3 var(--font-ui);
+  color: var(--color-fg-heading);
+}
+
+.empty__text {
+  max-width: 380px;
+  font: calc(12px * var(--ui-scale))/1.6 var(--font-ui);
+  color: var(--color-fg-muted);
+}
+
+.empty__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty__keys {
+  display: flex;
+  gap: 8px;
+}
+
+.key {
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font: calc(10px * var(--ui-scale))/1.4 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+/* ───────────────────────────── кнопки ───────────────────────────── */
+
+.button {
+  padding: 5px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  color: var(--color-fg);
+  font: calc(12px * var(--ui-scale))/1.4 var(--font-ui);
+  cursor: default;
+}
+
+.button:hover {
+  background: var(--color-bg-hover);
+}
+
+.button--accent {
+  border-color: transparent;
+  background: var(--color-accent);
+  color: hsl(0 0% 8%);
+  font-weight: 600;
+}
+
+.button--accent:hover {
+  background: var(--color-accent);
+  filter: brightness(1.08);
+}
+
+.button--danger {
+  color: var(--color-danger);
+}
+
+.button--link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: default;
+}
+
+/* ───────────────────────────── ошибки и баннеры ───────────────────────────── */
+
+.error {
+  flex: none;
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--color-danger);
+  border-radius: 0 4px 4px 0;
+  background: var(--color-bg-elevated);
+  color: var(--color-fg-muted);
+  font: calc(11px * var(--ui-scale))/1.5 var(--font-mono);
+  white-space: pre-wrap;
+}
+
+.banner {
+  flex: none;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid hsl(var(--hsl-danger) / 0.25);
+  border-radius: 7px;
+  background: hsl(var(--hsl-danger) / 0.1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.banner__glyph {
+  flex: none;
+  font: calc(13px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-danger);
+}
+
+.banner__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.banner__title {
+  font: 600 calc(12px * var(--ui-scale))/1.3 var(--font-ui);
+  color: var(--color-fg-heading);
+}
+
+.banner__note {
+  font: calc(11px * var(--ui-scale))/1.4 var(--font-mono);
+  color: var(--color-fg-muted);
+}
+
+/* Тело заметки в корзине: видно, но править нельзя. */
+.trashed-body {
+  flex: 1;
+  min-height: 0;
+  margin-top: 16px;
+  overflow-y: auto;
+  opacity: 0.55;
+  color: var(--color-fg);
+  font: calc(13px * var(--ui-scale))/calc(22px * var(--ui-scale)) var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ───────────────────────────── модалки ───────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: hsl(0 0% 0% / 0.55);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-modal);
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  font: calc(12px * var(--ui-scale))/1.3 var(--font-ui);
+  color: var(--color-fg-heading);
+}
+
+.modal__head .key {
+  margin-left: auto;
+}
+
+.modal__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border);
+  font: calc(10px * var(--ui-scale))/1.4 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+.modal__foot .button {
+  margin-left: 0;
+}
+
+.modal__foot-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+/* Выбор ноутбука для переноса. */
+.picker {
+  width: min(460px, 84vw);
+  max-height: 60vh;
+}
+
+.picker__input {
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-fg);
+  font: calc(13px * var(--ui-scale))/1.3 var(--font-mono);
+  caret-color: var(--color-accent);
+}
+
+.picker__input:focus {
+  outline: none;
+}
+
+.picker__list {
+  overflow-y: auto;
+  padding: 5px;
+}
+
+.picker__list .row {
+  border-radius: 5px;
+}
+
+/* Конфликт: обе стороны — чья-то работа, поэтому выбирает человек. */
+.conflict {
+  width: min(560px, 90vw);
+}
+
+.conflict__sides {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+}
+
+.conflict__divider {
+  background: var(--color-border);
+}
+
+.conflict__side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+.conflict__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 calc(10px * var(--ui-scale))/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-fg-dim);
+}
+
+.conflict__tag {
+  font: calc(10px * var(--ui-scale))/1 var(--font-mono);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-accent);
+}
+
+.conflict__fact {
+  font: calc(11px * var(--ui-scale))/1.6 var(--font-mono);
+  color: var(--color-fg-muted);
+}
+
+.conflict__preview {
+  max-height: 132px;
+  overflow: hidden;
+  padding: 8px;
+  border-radius: 5px;
+  background: var(--color-bg);
+  font: calc(10px * var(--ui-scale))/calc(15px * var(--ui-scale)) var(--font-mono);
+  color: var(--color-fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ───────────────────────────── панель мультивыбора ───────────────────────────── */
+
+.bulk {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.bulk__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 calc(10px * var(--ui-scale))/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.bulk__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-dashed);
+}
+
+.bulk__esc {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 400;
+  color: var(--color-fg-dim);
+  cursor: default;
+}
+
+.bulk__esc:hover {
+  color: var(--color-fg-muted);
+}
+
+.bulk__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.bulk__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk__caption {
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+.bulk__row .menu__key {
+  margin-left: auto;
+}
+
+.bulk__wide {
+  grid-column: 1 / -1;
+}
+
+.bulk__button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  color: var(--color-fg);
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  text-align: left;
+  cursor: default;
+}
+
+.bulk__button:hover {
+  background: var(--color-bg-hover);
+}
+
+.bulk__button--danger {
+  color: var(--color-danger);
+}
+
+.bulk__button .menu__key {
+  margin-left: auto;
+}
+
+/* ───────────────────────────── настройки ───────────────────────────── */
+
+/*
+ * Экран настроек: оверлей 820×600 в раскладке System Settings — навигация
+ * слева, карточки со строками справа. Не второе окно: настройки применяются
+ * сразу, и двум окнам пришлось бы синхронизировать состояние событием ради
+ * экрана, который открывают раз в месяц.
+ */
+.prefs {
+  display: flex;
+  width: min(820px, 94vw);
+  height: min(600px, 88vh);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-modal);
+}
+
+.prefs__nav {
+  width: 196px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px;
+  border-right: 1px solid var(--color-border);
+  background: hsl(var(--hsl-bg-sidebar) / 0.92);
+}
+
+.prefs__navhead {
+  padding: 6px 9px 10px;
+  font: 600 calc(10px * var(--ui-scale))/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-fg-dim);
+}
+
+.prefs__navitem {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-fg-muted);
+  font: calc(12px * var(--ui-scale))/1 var(--font-ui);
+  text-align: left;
+  cursor: default;
+}
+
+.prefs__navitem:hover {
+  background: var(--color-bg-hover);
+}
+
+.prefs__navitem[aria-selected="true"] {
+  background: var(--color-bg-selected);
+  color: var(--color-fg-heading);
+  font-weight: 600;
+}
+
+.prefs__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.prefs__title {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 22px;
+  font: 600 calc(15px * var(--ui-scale))/1 var(--font-ui);
+  color: var(--color-fg-heading);
+}
+
+.prefs__close {
+  margin-left: auto;
+  border: 0;
+  padding: 0 4px;
+  background: none;
+  color: var(--color-fg-dim);
+  font: calc(18px * var(--ui-scale))/1 var(--font-ui);
+  cursor: default;
+}
+
+.prefs__close:hover {
+  color: var(--color-fg-heading);
+}
+
+.prefs__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 2px 22px 22px;
+}
+
+/* Ничего внутри не сжимается: содержимое диктует высоту, а колонка
+   прокручивается. Иначе длинная подпись уезжает под границу карточки. */
+.prefs__content > * {
+  flex: none;
+}
+
+/* Карточка в стиле System Settings: строки разделены линиями, подпись слева
+   фиксированной ширины — иначе контролы встают лесенкой. */
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: hsl(var(--hsl-bg) / 0.5);
+  overflow: hidden;
+}
+
+.card--flat {
+  background: none;
+  border-style: dashed;
+}
+
+.card__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 14px 16px;
+}
+
+.card__row + .card__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.card__row--tight {
+  padding: 9px 16px;
+  align-items: center;
+}
+
+.card__label {
+  width: 150px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+
+.card__name {
+  font: calc(13px * var(--ui-scale))/1.3 var(--font-ui);
+  color: var(--color-fg-heading);
+}
+
+.card__hint {
+  font: calc(11px * var(--ui-scale))/1.4 var(--font-ui);
+  color: var(--color-fg-dim);
+}
+
+.card__control {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.card__note {
+  font: calc(11px * var(--ui-scale))/1.5 var(--font-ui);
+  color: var(--color-fg-dim);
+}
+
+.card__warn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 7px;
+  background: var(--color-accent-soft);
+  font: calc(11px * var(--ui-scale))/1.5 var(--font-ui);
+  color: var(--color-fg);
+}
+
+.card__warn--loud {
+  border-color: hsl(var(--hsl-danger) / 0.35);
+  background: hsl(var(--hsl-danger) / 0.1);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.section-note {
+  margin: 0;
+  font: calc(11px * var(--ui-scale))/1.6 var(--font-ui);
+  color: var(--color-fg-dim);
+}
+
+/* Превью тем: те же три колонки, что и в окне, — так видно, что поменяется. */
+.themes {
+  display: flex;
+  gap: 14px;
+}
+
+.theme {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: default;
+}
+
+.theme__preview {
+  position: relative;
+  width: 92px;
+  height: 60px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: hsl(0 0% 12%);
+}
+
+.theme__preview[data-kind="light"] {
+  background: hsl(0 0% 96%);
+}
+
+/* Авто — половина светлая, половина тёмная: это буквально то, что произойдёт
+   при смене системной темы. */
+.theme__preview[data-kind="auto"] {
+  background: linear-gradient(90deg, hsl(0 0% 96%) 0 50%, hsl(0 0% 12%) 50% 100%);
+}
+
+.theme__bar,
+.theme__side,
+.theme__body {
+  position: absolute;
+  background: hsl(0 0% 50% / 0.4);
+  border-radius: 2px;
+}
+
+.theme__bar {
+  left: 8px;
+  right: 8px;
+  top: 10px;
+  height: 5px;
+  background: hsl(0 0% 50% / 0.55);
+}
+
+.theme__side {
+  left: 8px;
+  top: 22px;
+  width: 34px;
+  bottom: 8px;
+  background: hsl(0 0% 50% / 0.28);
+}
+
+.theme__body {
+  left: 46px;
+  right: 8px;
+  top: 22px;
+  bottom: 8px;
+  background: hsl(0 0% 50% / 0.16);
+}
+
+.theme[aria-selected="true"] .theme__preview {
+  box-shadow: 0 0 0 3px var(--color-accent);
+}
+
+.theme__label {
+  font: calc(11px * var(--ui-scale))/1 var(--font-ui);
+  color: var(--color-fg-dim);
+}
+
+.theme[aria-selected="true"] .theme__label {
+  color: var(--color-fg-heading);
+  font-weight: 600;
+}
+
+/* Акценты: кружки с подписью, выбранный обведён двойным кольцом. */
+.accents {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.accent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: default;
+}
+
+.accent__dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  font: calc(12px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
+.accent__dot[data-accent="graphite"] { background: hsl(0 0% 62%); }
+.accent__dot[data-accent="steel"] { background: hsl(210 28% 64%); }
+.accent__dot[data-accent="sage"] { background: hsl(150 20% 58%); }
+.accent__dot[data-accent="lavender"] { background: hsl(258 24% 70%); }
+.accent__dot[data-accent="khaki"] { background: hsl(64 18% 62%); }
+.accent__dot[data-accent="clay"] { background: hsl(18 30% 62%); }
+
+/* «Свой» — пунктирный кружок с плюсом, пока не выбран; выбранный красится
+   тем оттенком, который стоит в ползунке. */
+.accent__dot[data-custom="true"] {
+  background: hsl(var(--hsl-accent) / 0.35);
+  border: 1px dashed var(--color-border);
+}
+
+.accent[aria-selected="true"] .accent__dot[data-custom="true"] {
+  background: hsl(var(--hsl-accent));
+  border-color: transparent;
+  color: transparent;
+}
+
+.accent[aria-selected="true"] .accent__dot {
+  box-shadow:
+    0 0 0 2px var(--color-bg-elevated),
+    0 0 0 4px var(--color-accent);
+}
+
+.accent__label {
+  font: calc(10px * var(--ui-scale))/1 var(--font-ui);
+  color: var(--color-fg-dim);
+}
+
+.accent[aria-selected="true"] .accent__label {
+  color: var(--color-fg-heading);
+}
+
+/* Ползунок: дорожка 4px, заполнение акцентом, значение справа моноширинным. */
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 260px;
+  max-width: 100%;
+}
+
+.slider__input {
+  flex: 1;
+  min-width: 0;
+  height: 15px;
+  margin: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: default;
+}
+
+.slider__input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+      90deg,
+      var(--color-accent) 0 var(--slider-fill, 0%),
+      transparent var(--slider-fill, 0%) 100%
+    ),
+    hsl(var(--hsl-fg) / 0.14);
+}
+
+.slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -5.5px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.35);
+}
+
+.slider__input:focus {
+  outline: none;
+}
+
+.slider__value {
+  width: 52px;
+  flex: none;
+  text-align: right;
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Тумблер: настоящий чекбокс под ним, чтобы работали клавиатура и фокус. */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: calc(12px * var(--ui-scale))/1.4 var(--font-ui);
+  color: var(--color-fg);
+  cursor: default;
+}
+
+.toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle__track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex: none;
+  border-radius: 9px;
+  background: hsl(var(--hsl-fg) / 0.14);
+  transition: background 120ms ease-out;
+}
+
+.toggle__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.35);
+  transition: left 120ms ease-out;
+}
+
+.toggle input:checked + .toggle__track {
+  background: var(--color-accent);
+}
+
+.toggle input:checked + .toggle__track .toggle__knob {
+  left: 16px;
+}
+
+.toggle[data-disabled="true"] {
+  opacity: 0.5;
+}
+
+.choice {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+}
+
+.choice__item {
+  border: 0;
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: none;
+  color: var(--color-fg-muted);
+  font: calc(12px * var(--ui-scale))/1.2 var(--font-ui);
+  cursor: default;
+}
+
+.choice__item[aria-selected="true"] {
+  background: var(--color-bg-selected);
+  color: var(--color-fg-heading);
+}
+
+/* Пути показываются моноширинным и режутся с начала: конец информативнее. */
+.pathline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.pathline__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font: calc(11px * var(--ui-scale))/1.5 var(--font-mono);
+  color: var(--color-fg-muted);
+}
+
+.pathrow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+}
+
+.pathrow__label {
+  width: 84px;
+  flex: none;
+  font: calc(11px * var(--ui-scale))/1.5 var(--font-ui);
+  color: var(--color-fg-dim);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 18px;
+  width: 100%;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fact__label {
+  font: calc(10px * var(--ui-scale))/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg-dim);
+}
+
+.fact__value {
+  font: calc(14px * var(--ui-scale))/1.2 var(--font-ui);
+  color: var(--color-fg-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.codeblock {
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: hsl(var(--hsl-bg) / 0.6);
+  font: calc(11px * var(--ui-scale))/1.6 var(--font-mono);
+  color: var(--color-fg-muted);
+}
+
+/* Шоткаты: клавиши строкой, каждая с крестиком, плюс кнопка добавления. */
+.shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shortcuts .section {
+  padding: 4px 0 2px;
+}
+
+.keys {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.keycap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-bg-badge);
+  font: calc(11px * var(--ui-scale))/1.4 var(--font-mono);
+  color: var(--color-fg);
+}
+
+.keycap__combo,
+.keycap__remove {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+.keycap__remove {
+  padding: 0 3px;
+  opacity: 0.5;
+}
+
+.keycap__remove:hover {
+  opacity: 1;
+  color: var(--color-danger);
+}
+
+.keycap--add {
+  padding: 2px 8px;
+  border-style: dashed;
+  background: none;
+  color: var(--color-fg-dim);
+  cursor: default;
+}
+
+.keycap--add:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent-line);
+}
+
+/* Запись сочетания: поле ждёт нажатия, поэтому выделено акцентом. */
+.keycap--recording {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* ───────────────────────────── фокус колонки ───────────────────────────── */
+
+/*
+ * Какая колонка принимает клавиши. Без видимой пометки модель фокуса
+ * невидима: `j` работает то здесь, то там, и понять почему нельзя.
+ *
+ * Полоса по внутреннему краю, а не рамка вокруг: рамка на всю высоту спорит
+ * с разделителями колонок и собирает интерфейс в клетку.
+ */
+/*
+ * Фокус показывается цветом выбранного, а не полосой на стыке колонок.
+ *
+ * Так это устроено в Finder и почти везде в macOS: выделение горит акцентом
+ * там, где сейчас работают, и гаснет до серого в остальных колонках. Полоса
+ * на стыке спорила бы с разделителем и читалась бы как часть хрома, а не как
+ * ответ на вопрос «куда сейчас пойдут клавиши».
+ *
+ * У редактора отдельной пометки нет: там фокус виден по каретке.
+ */
+.note[aria-selected="true"] {
+  border-left-color: var(--color-fg-faint);
+}
+
+.pane--list[data-focused="true"] .note[aria-selected="true"] {
+  border-left-color: var(--color-accent);
+}
+
+.pane--sidebar:not([data-focused="true"]) .row[aria-selected="true"] .row__glyph,
+.pane--sidebar:not([data-focused="true"]) .row[aria-selected="true"] .row__count {
+  color: var(--color-fg-dim);
+}
+
+/* Курсор клавиатуры в сайдбаре — не то же самое, что выбранный фильтр:
+   ходить по дереву можно, ничего не открывая. */
+.row[data-cursor="true"] {
+  background: var(--color-bg-hover);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.row[data-cursor="true"][aria-selected="true"] {
+  background: var(--color-bg-selected);
+}
+
+/* ───────────────────────────── кнопки верхней полосы ───────────────────────────── */
+
+/*
+ * Полоса списка с инструментами. Пока сайдбар на месте, самая левая полоса —
+ * его, и светофор рисуется над ней. Свернули сайдбар — место под светофор
+ * должна оставить уже эта.
+ */
+.drag-strip--tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+}
+
+.drag-strip--tools[data-lights="true"] {
+  padding-left: 78px;
+}
+
+/* Кнопка на полосе перетаскивания: полоса тянет окно, кнопка отменяет это
+   у себя — свойство наследуется. */
+.stripbutton {
+  --wails-draggable: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-fg-dim);
+  font: calc(15px * var(--ui-scale))/1 var(--font-mono);
+  cursor: default;
+}
+
+.stripbutton:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-fg-heading);
+}
+
+.stripbutton[aria-pressed="true"] {
+  color: var(--color-fg-muted);
+}

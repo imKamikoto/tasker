@@ -12,11 +12,13 @@ import {
   highlightActiveLine,
   highlightSpecialChars,
   keymap,
+  lineNumbers,
   rectangularSelection,
 } from "@codemirror/view";
-import { Vim, vim } from "@replit/codemirror-vim";
+import { Vim, getCM, vim } from "@replit/codemirror-vim";
 
-import { oakHighlight, oakTheme } from "../editorTheme";
+import { checkboxHighlight } from "../checkboxes";
+import { taskerHighlight, taskerTheme } from "../editorTheme";
 import { continueList } from "../lists";
 import { RU_LANGMAP } from "../langmap";
 
@@ -30,6 +32,20 @@ type Props = {
   onQuit: () => void;
   /** Растёт, когда список просит передать фокус в текст. */
   focusToken: number;
+  /** Состояние для строки статуса: режим вима и позиция курсора. */
+  onStatus: (status: EditorStatus) => void;
+  /** Показывать номера строк. */
+  lineNumbers: boolean;
+  /** Переносить длинные строки. */
+  lineWrap: boolean;
+};
+
+/** Что показывает строка статуса под текстом. */
+export type EditorStatus = {
+  /** NORMAL, INSERT, VISUAL — как их называет сам вим. */
+  mode: string;
+  line: number;
+  column: number;
 };
 
 /**
@@ -39,15 +55,37 @@ type Props = {
  * вима, позицию курсора и историю отмен. Заметки переключаются через key на
  * родителе, а не подменой документа — так меньше мест, где можно ошибиться.
  */
-export function CodeMirror({ initialDoc, onChange, onWrite, onQuit, focusToken }: Props) {
+export function CodeMirror({
+  initialDoc,
+  onChange,
+  onWrite,
+  onQuit,
+  focusToken,
+  onStatus,
+  lineNumbers: showLineNumbers,
+  lineWrap,
+}: Props) {
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<EditorView | null>(null);
+  // Режим держим здесь, а не в state: он меняется на каждое нажатие, и
+  // перерисовывать из-за него редактор нельзя.
+  const mode = useRef("NORMAL");
+
+  const reportPosition = (editor: EditorView) => {
+    const head = editor.state.selection.main.head;
+    const line = editor.state.doc.lineAt(head);
+    callbacks.current.onStatus({
+      mode: mode.current,
+      line: line.number,
+      column: head - line.from + 1,
+    });
+  };
 
   // Колбэки держим в ref: они меняются на каждом рендере родителя, а редактор
   // пересоздавать из-за этого нельзя. Классическая ловушка устаревшего
   // замыкания, если сложить их прямо в расширения.
-  const callbacks = useRef({ onChange, onWrite, onQuit });
-  callbacks.current = { onChange, onWrite, onQuit };
+  const callbacks = useRef({ onChange, onWrite, onQuit, onStatus });
+  callbacks.current = { onChange, onWrite, onQuit, onStatus };
 
   useEffect(() => {
     if (!host.current) return;
@@ -64,7 +102,12 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit, focusToken }
         doc: initialDoc,
         extensions: [
           // Вим идёт первым, иначе его кеймап перекрывается дефолтным.
-          vim({ status: true }),
+          // status: false — свою панель он рисует внутри редактора, а нам
+          // нужна одна строка на всю ширину колонки, с режимом и позицией.
+          vim({ status: false }),
+          // Расширения включаются списком, а не переключаются на лету:
+          // редактор всё равно пересоздаётся, когда настройка меняется.
+          ...(showLineNumbers ? [lineNumbers()] : []),
           history(),
           drawSelection(),
           EditorState.allowMultipleSelections.of(true),
@@ -78,9 +121,10 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit, focusToken }
           // Подсветка кода внутри блоков грузится по требованию: тащить все
           // языки сразу — это мегабайты ради заметки, где их обычно нет.
           markdown({ base: markdownLanguage, codeLanguages: languages }),
-          oakHighlight,
-          oakTheme,
-          EditorView.lineWrapping,
+          taskerHighlight,
+          taskerTheme,
+          checkboxHighlight,
+          ...(lineWrap ? [EditorView.lineWrapping] : []),
           // Продолжение списков идёт раньше умолчаний, иначе Enter заберёт
           // дефолтная привязка и до нас не дойдёт.
           keymap.of([{ key: "Enter", run: continueListOnEnter }]),
@@ -94,14 +138,28 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit, focusToken }
           }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) callbacks.current.onChange(update.state.doc.toString());
+            if (update.docChanged || update.selectionSet) reportPosition(update.view);
           }),
         ],
       }),
     });
 
-    editor.focus();
+    // Режим вима приходит событием: своей панели у него больше нет, а знать,
+    // в каком он режиме, — половина смысла вим-режима.
+    const cm = getCM(editor);
+    const onModeChange = (event: { mode: string; subMode?: string }) => {
+      mode.current = (event.subMode || event.mode || "normal").toUpperCase();
+      reportPosition(editor);
+    };
+    cm?.on("vim-mode-change", onModeChange);
+    reportPosition(editor);
+
+    // Каретку сюда не забираем: кто владеет фокусом, решает App. Иначе
+    // щелчок по заметке выбрасывал бы из списка в текст, и j/k переставали
+    // работать сразу после выбора.
     view.current = editor;
     return () => {
+      cm?.off("vim-mode-change", onModeChange);
       editor.destroy();
       view.current = null;
     };
@@ -112,8 +170,17 @@ export function CodeMirror({ initialDoc, onChange, onWrite, onQuit, focusToken }
 
   // Enter в списке передаёт фокус сюда. Через число, а не через ref наружу:
   // так фокус — это событие, а не состояние, и повторный запрос сработает.
+  //
+  // Значение при монтировании запоминается и пропускается. Редактор
+  // пересоздаётся на каждой заметке, а эффект нового компонента срабатывает
+  // сразу с текущим числом — и после первого же Enter каждое переключение
+  // заметки в списке утаскивало бы каретку в текст. Фокус — это событие,
+  // и «событием» здесь считается только изменение, а не сам факт монтирования.
+  const requested = useRef(focusToken);
   useEffect(() => {
-    if (focusToken > 0) view.current?.focus();
+    if (focusToken === requested.current) return;
+    requested.current = focusToken;
+    view.current?.focus();
   }, [focusToken]);
 
   return <div className="cm-host" ref={host} />;

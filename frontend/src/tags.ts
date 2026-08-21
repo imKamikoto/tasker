@@ -31,6 +31,22 @@ export function addTag(current: string[], tag: string): string[] {
 /** Сколько цветов в палитре (SPEC §8.2). Совпадает с TagPalette в Go. */
 export const tagPalette = 14;
 
+/**
+ * Оттенки палитры тегов: круг, поделённый на 14 с шагом 26°.
+ *
+ * Насыщенность и светлота у всех общие и живут в CSS (--tag-s, --tag-l) —
+ * они разные в тёмной и светлой теме, а оттенок один и тот же.
+ */
+export const tagHues = [8, 34, 60, 86, 112, 138, 164, 190, 216, 242, 268, 294, 320, 346];
+
+/**
+ * tagStyle отдаёт inline-переменную с оттенком, чтобы разметка не знала
+ * ни про палитру, ни про то, светлая сейчас тема или тёмная.
+ */
+export function tagStyle(color: number): { [key: string]: string } {
+  return { "--tag-hue": String(tagHues[((color % tagPalette) + tagPalette) % tagPalette]) };
+}
+
 /** «Цвет не выбран»: тогда он выводится из имени. Совпадает с AutoColor в Go. */
 export const autoColor = -1;
 
