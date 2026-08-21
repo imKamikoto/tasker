@@ -26,6 +26,12 @@ export const api = {
   setPinned: (id: string, pinned: boolean) => Notes.SetPinned(id, pinned),
   duplicate: (id: string) => Notes.Duplicate(id),
   move: (id: string, notebook: string) => Notes.Move(id, notebook),
+
+  // Массовые операции: один вызов на всю пачку, чтобы Go сделал один коммит.
+  trashMany: (ids: string[]) => Notes.TrashMany(ids),
+  moveMany: (ids: string[], notebook: string) => Notes.MoveMany(ids, notebook),
+  setStatusMany: (ids: string[], status: string) => Notes.SetStatusMany(ids, status),
+  setPinnedMany: (ids: string[], pinned: boolean) => Notes.SetPinnedMany(ids, pinned),
   deleteForever: (id: string) => Notes.Delete(id),
   get: (id: string) => Notes.Get(id),
   notebooks: () => Notes.Notebooks().then(nonNull),

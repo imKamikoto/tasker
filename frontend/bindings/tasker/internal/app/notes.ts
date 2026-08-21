@@ -57,6 +57,10 @@ export function Move(id: string, notebook: string): $CancellablePromise<index$0.
     return $Call.ByID(2195879325, id, notebook);
 }
 
+export function MoveMany(ids: string[] | null, notebook: string): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(3874796650, ids, notebook);
+}
+
 /**
  * Notebooks возвращает дерево ноутбуков со счётчиками.
  */
@@ -98,11 +102,19 @@ export function SetPinned(id: string, pinned: boolean): $CancellablePromise<inde
     return $Call.ByID(3728356338, id, pinned);
 }
 
+export function SetPinnedMany(ids: string[] | null, pinned: boolean): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(1958385413, ids, pinned);
+}
+
 /**
  * SetStatus меняет статус заметки.
  */
 export function SetStatus(id: string, status: string): $CancellablePromise<index$0.Record> {
     return $Call.ByID(2988377314, id, status);
+}
+
+export function SetStatusMany(ids: string[] | null, status: string): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(2900221013, ids, status);
 }
 
 /**
@@ -128,6 +140,10 @@ export function Tasks(limit: number): $CancellablePromise<notes$0.Note[] | null>
  */
 export function Trash(id: string): $CancellablePromise<void> {
     return $Call.ByID(1638432474, id);
+}
+
+export function TrashMany(ids: string[] | null): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(544364605, ids);
 }
 
 /**

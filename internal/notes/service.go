@@ -449,6 +449,104 @@ func (s *Service) fromTrash(
 	return updated, nil
 }
 
+// applyMany выполняет одно и то же действие над несколькими заметками.
+//
+// Одна блокировка и один коммит на всю пачку, а не на каждую заметку: иначе
+// перенос двадцати заметок даёт двадцать коммитов в истории и двадцать
+// захватов блокировки, сквозь которые агент в это время не пролезет.
+//
+// Заметка, на которой действие сорвалось, не отменяет остальные: остановиться
+// посередине значило бы оставить пачку в непонятном состоянии. Ошибки
+// собираются и возвращаются вместе.
+func (s *Service) applyMany(
+	ctx context.Context, ids []string, action string, apply func(*vault.Note) error,
+) ([]index.Record, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	release, err := s.lock.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	var (
+		updated []index.Record
+		titles  []string
+		failed  []error
+	)
+	for _, id := range ids {
+		rec, err := s.index.Get(ctx, id)
+		if err != nil {
+			failed = append(failed, err)
+			continue
+		}
+		n, err := s.loadByPath(rec.Path)
+		if err != nil {
+			failed = append(failed, err)
+			continue
+		}
+		if err := apply(n); err != nil {
+			failed = append(failed, fmt.Errorf("%s %q: %w", action, rec.Title, err))
+			continue
+		}
+		result, err := s.reindex(ctx, n)
+		if err != nil {
+			failed = append(failed, err)
+			continue
+		}
+		updated = append(updated, result)
+		titles = append(titles, result.Title)
+	}
+
+	if len(titles) > 0 {
+		message := gitstore.NotesMessage(titles)
+		if s.origin == vault.OriginAgent {
+			message = gitstore.AgentMessage(action, fmt.Sprintf("%d заметок", len(titles)))
+		}
+		if _, err := s.git.Commit(ctx, message); err != nil {
+			failed = append(failed, err)
+		}
+	}
+	return updated, errors.Join(failed...)
+}
+
+// TrashMany переносит в корзину пачку заметок.
+func (s *Service) TrashMany(ctx context.Context, ids []string) ([]index.Record, error) {
+	return s.applyMany(ctx, ids, "trash", s.vault.Trash)
+}
+
+// MoveMany переносит пачку заметок в один ноутбук.
+func (s *Service) MoveMany(ctx context.Context, ids []string, notebook string) ([]index.Record, error) {
+	return s.applyMany(ctx, ids, "move", func(n *vault.Note) error {
+		return s.vault.Move(n, notebook)
+	})
+}
+
+// SetStatusMany проставляет один статус пачке заметок.
+func (s *Service) SetStatusMany(ctx context.Context, ids []string, status vault.Status) ([]index.Record, error) {
+	if _, err := vault.ParseStatus(string(status)); err != nil {
+		return nil, err
+	}
+	return s.applyMany(ctx, ids, "status", func(n *vault.Note) error {
+		if err := n.Doc.Meta.SetStatus(status); err != nil {
+			return err
+		}
+		return s.vault.Save(n)
+	})
+}
+
+// SetPinnedMany закрепляет или открепляет пачку заметок.
+func (s *Service) SetPinnedMany(ctx context.Context, ids []string, pinned bool) ([]index.Record, error) {
+	return s.applyMany(ctx, ids, "pin", func(n *vault.Note) error {
+		if err := n.Doc.Meta.SetPinned(pinned); err != nil {
+			return err
+		}
+		return s.vault.Save(n)
+	})
+}
+
 // Note — заметка целиком: строка индекса, тело и связи.
 type Note struct {
 	index.Record

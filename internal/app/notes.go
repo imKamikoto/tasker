@@ -92,6 +92,28 @@ func (n *Notes) Trash(ctx context.Context, id string) error {
 	return n.service.Trash(ctx, id)
 }
 
+// Массовые операции: одна блокировка и один коммит на всю пачку (SPEC §8.4).
+
+func (n *Notes) TrashMany(ctx context.Context, ids []string) ([]index.Record, error) {
+	return n.service.TrashMany(ctx, ids)
+}
+
+func (n *Notes) MoveMany(ctx context.Context, ids []string, notebook string) ([]index.Record, error) {
+	return n.service.MoveMany(ctx, ids, notebook)
+}
+
+func (n *Notes) SetStatusMany(ctx context.Context, ids []string, status string) ([]index.Record, error) {
+	parsed, err := vault.ParseStatus(status)
+	if err != nil {
+		return nil, err
+	}
+	return n.service.SetStatusMany(ctx, ids, parsed)
+}
+
+func (n *Notes) SetPinnedMany(ctx context.Context, ids []string, pinned bool) ([]index.Record, error) {
+	return n.service.SetPinnedMany(ctx, ids, pinned)
+}
+
 // Move переносит заметку в другой ноутбук. Пустая строка — корень vault.
 func (n *Notes) Move(ctx context.Context, id, notebook string) (index.Record, error) {
 	return n.service.Update(ctx, notes.UpdateParams{ID: id, Notebook: &notebook})

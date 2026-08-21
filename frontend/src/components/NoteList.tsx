@@ -12,11 +12,11 @@ const overscan = 6;
 
 type Props = {
   notes: Note[];
-  selected: string | null;
+  selected: string[];
   query: string;
   error: string | null;
   onQuery: (query: string) => void;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, modifiers: { toggle: boolean; range: boolean }) => void;
   sortField: SortField;
   sortReversed: boolean;
   onSort: (field: SortField, reversed: boolean) => void;
@@ -112,8 +112,11 @@ export function NoteList({
         <button
           key={note.ID}
           className="note"
-          aria-selected={note.ID === selected}
-          onClick={() => onSelect(note.ID)}
+          aria-selected={selected.includes(note.ID)}
+          onClick={(event) =>
+            // metaKey — Cmd на macOS; платформа у нас одна (SPEC §9).
+            onSelect(note.ID, { toggle: event.metaKey, range: event.shiftKey })
+          }
           draggable
           // Тащим идентификатор: ноутбук на той стороне сам решит, что с ним
           // делать, и знать о списке ему не нужно.

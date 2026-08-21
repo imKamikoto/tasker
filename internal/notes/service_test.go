@@ -677,3 +677,182 @@ func TestDuplicateTwice(t *testing.T) {
 		t.Errorf("копии совпали: %q и %q", first.Path, second.Path)
 	}
 }
+
+func makeNotes(t *testing.T, s *Service, titles ...string) []string {
+	t.Helper()
+	var ids []string
+	for _, title := range titles {
+		created, err := s.Create(context.Background(), CreateParams{Title: title, Notebook: "Работа"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, created.ID)
+	}
+	return ids
+}
+
+func commitCount(t *testing.T, root string) int {
+	t.Helper()
+	return strings.Count(strings.TrimSpace(gitLog(t, root)), "\n") + 1
+}
+
+// Главное требование к массовым операциям: один коммит на пачку, а не по одному
+// на заметку (SPEC §4.5).
+func TestBulkMakesOneCommit(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	ids := makeNotes(t, s, "Первая", "Вторая", "Третья", "Четвёртая")
+	before := commitCount(t, root)
+
+	updated, err := s.SetStatusMany(ctx, ids, vault.StatusCompleted)
+	if err != nil {
+		t.Fatalf("SetStatusMany: %v", err)
+	}
+	if len(updated) != 4 {
+		t.Errorf("обновлено %d, ожидалось 4", len(updated))
+	}
+	for _, rec := range updated {
+		if rec.Status != "completed" {
+			t.Errorf("%q со статусом %q", rec.Title, rec.Status)
+		}
+	}
+
+	if added := commitCount(t, root) - before; added != 1 {
+		t.Errorf("коммитов добавилось %d, ожидался один", added)
+	}
+	if !strings.Contains(gitLog(t, root), "notes: 4 изменено") {
+		t.Errorf("сообщение коммита не то:\n%s", gitLog(t, root))
+	}
+}
+
+func TestBulkMove(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	ids := makeNotes(t, s, "Раз", "Два", "Три")
+
+	updated, err := s.MoveMany(ctx, ids, "Личное/Идеи")
+	if err != nil {
+		t.Fatalf("MoveMany: %v", err)
+	}
+	for _, rec := range updated {
+		if rec.Notebook != "Личное/Идеи" {
+			t.Errorf("%q в ноутбуке %q", rec.Title, rec.Notebook)
+		}
+	}
+	found, err := s.Search(ctx, "book:Личное/Идеи", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 3 {
+		t.Errorf("в целевом ноутбуке %d заметок", len(found))
+	}
+}
+
+func TestBulkTrashAndPin(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	ids := makeNotes(t, s, "Раз", "Два")
+
+	if _, err := s.SetPinnedMany(ctx, ids, true); err != nil {
+		t.Fatalf("SetPinnedMany: %v", err)
+	}
+	found, err := s.Search(ctx, "is:pinned", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 2 {
+		t.Errorf("закреплённых %d", len(found))
+	}
+
+	if _, err := s.TrashMany(ctx, ids); err != nil {
+		t.Fatalf("TrashMany: %v", err)
+	}
+	live, err := s.Search(ctx, "", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(live) != 0 {
+		t.Errorf("осталось живых: %d", len(live))
+	}
+}
+
+// Одна сорвавшаяся заметка не должна отменять остальные: остановиться
+// посередине значит оставить пачку в непонятном состоянии.
+func TestBulkContinuesAfterFailure(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	ids := makeNotes(t, s, "Первая", "Вторая")
+	// В середину подсовываем несуществующий идентификатор.
+	withGhost := []string{ids[0], "01K3QF8ZN7X2WPBV4YHMC6TDAE", ids[1]}
+
+	updated, err := s.SetStatusMany(ctx, withGhost, vault.StatusActive)
+	if err == nil {
+		t.Error("об ошибке не сообщили")
+	}
+	if len(updated) != 2 {
+		t.Errorf("обновлено %d, ожидались обе живые", len(updated))
+	}
+	found, err := s.Search(ctx, "status:active", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 2 {
+		t.Errorf("статус проставлен %d заметкам", len(found))
+	}
+}
+
+func TestBulkEmptyIsNoop(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	makeNotes(t, s, "Одна")
+	before := commitCount(t, root)
+
+	updated, err := s.TrashMany(context.Background(), nil)
+	if err != nil || len(updated) != 0 {
+		t.Errorf("на пустой пачке: %+v, %v", updated, err)
+	}
+	if commitCount(t, root) != before {
+		t.Error("пустая пачка создала коммит")
+	}
+}
+
+// От агента сообщение коммита должно оставаться агентским.
+func TestBulkAgentMessage(t *testing.T) {
+	s, root := testService(t, vault.OriginAgent)
+	ctx := context.Background()
+	ids := makeNotes(t, s, "Раз", "Два")
+
+	if _, err := s.SetStatusMany(ctx, ids, vault.StatusCompleted); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(gitLog(t, root), `agent: status "2 заметок"`) {
+		t.Errorf("сообщение не агентское:\n%s", gitLog(t, root))
+	}
+}
+
+// Сбой на самом действии, а не на поиске заметки: остальные всё равно должны
+// быть обработаны. Уже удалённая заметка — самый простой способ его получить.
+func TestBulkContinuesAfterActionFailure(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	ids := makeNotes(t, s, "Первая", "Уже в корзине", "Третья")
+
+	if err := s.Trash(ctx, ids[1]); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := s.TrashMany(ctx, ids)
+	if !errors.Is(err, vault.ErrAlreadyTrashed) {
+		t.Errorf("ошибка = %v, ожидалась ErrAlreadyTrashed", err)
+	}
+	if len(updated) != 2 {
+		t.Fatalf("обработано %d, ожидались две оставшиеся", len(updated))
+	}
+
+	live, err := s.Search(ctx, "", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(live) != 0 {
+		t.Errorf("живых осталось %d — пачка оборвалась на сбое", len(live))
+	}
+}

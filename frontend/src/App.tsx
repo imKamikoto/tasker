@@ -14,6 +14,7 @@ import {
 import { Editor } from "./components/Editor";
 import { NoteList } from "./components/NoteList";
 import { Sidebar, type Filter } from "./components/Sidebar";
+import { applyClick } from "./selection";
 import { defaultSettings } from "./settings";
 import { statusForKey } from "./statuses";
 import { MovePicker } from "./components/MovePicker";
@@ -34,7 +35,14 @@ export default function App() {
   // «Активные» по умолчанию: с этого экрана начинается рабочий день (SPEC §8.3).
   const [filter, setFilter] = useState<Filter>({ kind: "active" });
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+  // Выделение — набор, а не одна заметка: Cmd и Shift выделяют несколько
+  // (SPEC §8.4). Якорь нужен, чтобы Shift тянул диапазон от одной точки.
+  const [selected, setSelected] = useState<string[]>([]);
+  const [anchor, setAnchor] = useState<string | null>(null);
+
+  // Редактор показывает заметку, только когда выбрана ровно одна: показывать
+  // «одну из пяти» — значит врать про то, что правится.
+  const single = selected.length === 1 ? selected[0] : null;
   const [listError, setListError] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
 
@@ -120,13 +128,13 @@ export default function App() {
   }, [search, revision, filter.kind, query, settings]);
 
   useEffect(() => {
-    if (!selected) {
+    if (!single) {
       setNote(null);
       return;
     }
     let cancelled = false;
     api
-      .get(selected)
+      .get(single)
       .then((loaded) => {
         if (cancelled) return;
         setNote(loaded);
@@ -136,7 +144,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selected, revision]);
+  }, [single, revision]);
 
   // Заметка, заведённая агентом через tasker-mcp, должна появиться в списке
   // сама — ради этого шага сценария приёмки (MCP.md §6) всё и затевалось.
@@ -144,7 +152,7 @@ export default function App() {
     const off = [
       subscribe(events.notesChanged, () => setRevision((n) => n + 1)),
       subscribe<NoteChanged>(events.noteChanged, (changed) => {
-        if (changed.id !== selected) return;
+        if (changed.id !== single) return;
         // Чистый буфер просто перечитываем. С несохранённым решает человек:
         // молча затереть его правку содержимым с диска нельзя (SPEC §5.3).
         if (dirty.current) setConflict(true);
@@ -152,14 +160,14 @@ export default function App() {
       }),
     ];
     return () => off.forEach((unsubscribe) => unsubscribe());
-  }, [selected]);
+  }, [single]);
 
   // Обе операции корзины меняют список целиком: заметка либо уезжает обратно,
   // либо исчезает навсегда.
   const act = useCallback((operation: Promise<unknown>, keepSelection = false) => {
     operation
       .then(() => {
-        if (!keepSelection) setSelected(null);
+        if (!keepSelection) setSelected([]);
         setRevision((n) => n + 1);
       })
       .catch((err) => setNoteError(describeError(err)));
@@ -167,7 +175,8 @@ export default function App() {
 
   const onFilter = useCallback((next: Filter) => {
     setFilter(next);
-    setSelected(null);
+    setSelected([]);
+    setAnchor(null);
     setConflict(false);
   }, []);
 
@@ -208,13 +217,10 @@ export default function App() {
 
       if (event.metaKey && event.ctrlKey) {
         const status = statusForKey(event.key);
-        if (status && selected) {
+        if (status && selected.length > 0) {
           event.preventDefault();
-          void api
-            .setStatus(selected, status)
-            // Заметка могла перестать подходить под фильтр — перечитываем список.
-            .then(() => setRevision((n) => n + 1))
-            .catch((err) => setListError(describeError(err)));
+          // Заметки могли перестать подходить под фильтр — перечитываем список.
+          act(api.setStatusMany(selected, status), true);
         }
         return;
       }
@@ -225,15 +231,16 @@ export default function App() {
       if (typing) return;
 
       // Cmd+Backspace — в корзину, Cmd+D — дублировать (SPEC §8.4).
-      if (event.metaKey && !event.ctrlKey && !event.altKey && selected) {
+      if (event.metaKey && !event.ctrlKey && !event.altKey && selected.length > 0) {
         if (event.key === "Backspace") {
           event.preventDefault();
-          act(api.trash(selected));
+          act(api.trashMany(selected));
           return;
         }
-        if (event.key === "d") {
+        if (event.key === "d" && single) {
+          // Дублирование остаётся штучным: копия пачки почти всегда промах.
           event.preventDefault();
-          act(api.duplicate(selected));
+          act(api.duplicate(single));
           return;
         }
       }
@@ -242,37 +249,44 @@ export default function App() {
 
       switch (event.key) {
         case "j":
-        case "k":
+        case "k": {
           event.preventDefault();
-          setSelected((current) => step(notes, current, event.key === "j" ? 1 : -1));
+          // Стрелками ходим по одной: расширять выделение с клавиатуры — это
+          // Shift+клик, а не j и k.
+          const next = step(notes, single, event.key === "j" ? 1 : -1);
+          setSelected(next ? [next] : []);
+          setAnchor(next);
           return;
+        }
         case "Enter":
           // Из списка — в текст. Обратно уводит вим по :q или мышь.
-          if (selected) {
+          if (single) {
             event.preventDefault();
             setFocusToken((n) => n + 1);
           }
           return;
         case "m":
           // Перенос в другой ноутбук: выбор открывается поверх списка.
-          if (selected) {
+          if (selected.length > 0) {
             event.preventDefault();
             setMoving(true);
           }
           return;
-        case "p":
-          if (selected) {
-            event.preventDefault();
-            const note = notes.find((item) => item.ID === selected);
-            if (note) act(api.setPinned(selected, !note.Pinned), true);
-          }
+        case "p": {
+          if (selected.length === 0) return;
+          event.preventDefault();
+          // Пачку закрепляем целиком, ориентируясь на первую заметку: половину
+          // закрепить, половину открепить — не то, чего ждут от одной клавиши.
+          const first = notes.find((item) => item.ID === selected[0]);
+          act(api.setPinnedMany(selected, !(first?.Pinned ?? false)), true);
           return;
+        }
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notes, selected, act]);
+  }, [notes, selected, single, act]);
 
   return (
     <div
@@ -281,13 +295,13 @@ export default function App() {
         gridTemplateColumns: `${settings.sidebarWidth}px 1px ${settings.listWidth}px 1px 1fr`,
       }}
     >
-      {moving && selected && (
+      {moving && selected.length > 0 && (
         <MovePicker
           notebooks={notebooks.map((notebook) => notebook.Path)}
           onCancel={() => setMoving(false)}
           onPick={(notebook) => {
             setMoving(false);
-            act(api.move(selected, notebook), true);
+            act(api.moveMany(selected, notebook), true);
           }}
         />
       )}
@@ -298,7 +312,11 @@ export default function App() {
         filter={filter}
         onFilter={onFilter}
         collapsed={settings.collapsed}
-        onDropNote={(id, notebook) => act(api.move(id, notebook), true)}
+        onDropNote={(id, notebook) =>
+          // Тащат одну строку, но если она внутри выделения — переносится всё
+          // выделение: иначе пришлось бы тащить их по одной.
+          act(api.moveMany(selected.includes(id) ? selected : [id], notebook), true)
+        }
         onToggle={(path) =>
           setSettings((current) => ({
             ...current,
@@ -320,7 +338,18 @@ export default function App() {
         query={query}
         error={listError}
         onQuery={setQuery}
-        onSelect={setSelected}
+        onSelect={(id, modifiers) => {
+          const next = applyClick({
+            order: notes.map((note) => note.ID),
+            selected,
+            anchor,
+            clicked: id,
+            toggle: modifiers.toggle,
+            range: modifiers.range,
+          });
+          setSelected(next.selected);
+          setAnchor(next.anchor);
+        }}
         sortField={settings.sortField}
         sortReversed={settings.sortReversed}
         onSort={(sortField, sortReversed) =>
@@ -338,9 +367,14 @@ export default function App() {
           <div className="error">{noteError}</div>
         </div>
       )}
-      {!noteError && !note && (
+      {!noteError && !note && selected.length <= 1 && (
         <div className="pane pane--editor">
           <div className="empty">Выберите заметку слева</div>
+        </div>
+      )}
+      {selected.length > 1 && (
+        <div className="pane pane--editor">
+          <div className="empty">Выбрано заметок: {selected.length}</div>
         </div>
       )}
       {!noteError && note && filter.kind === "trash" && (
@@ -365,7 +399,7 @@ export default function App() {
           note={note}
           onSaved={onSaved}
           onDirty={(value) => (dirty.current = value)}
-          onClose={() => setSelected(null)}
+          onClose={() => setSelected([])}
           conflict={conflict}
           focusToken={focusToken}
           onReload={() => {
