@@ -133,22 +133,32 @@ func (i *Info) OnBattery() bool {
 	return strings.Contains(string(out), "Battery Power")
 }
 
-// mcpBinary ищет tasker-mcp рядом с приложением.
+// mcpBinary ищет tasker-mcp там, где он может лежать.
 //
-// Рядом, а не в PATH: собирают их вместе одной командой, и в PATH его обычно
-// нет. Пустая строка означает «не нашли» — интерфейс тогда покажет, как
-// собрать.
+// Порядок не случаен: рядом со сборкой его находят сразу после `task package`,
+// а `~/bin` — место из docs/MCP.md, куда он переезжает при установке. Внутрь
+// бандла его не кладут: приложение и агент — разные процессы, и обновлять их
+// по отдельности удобнее, чем распаковывать .app.
+//
+// Пустая строка означает «не нашли» — интерфейс тогда покажет, как собрать.
 func mcpBinary() string {
-	binary, err := os.Executable()
-	if err != nil {
-		return ""
+	var candidates []string
+
+	if binary, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(binary), "tasker-mcp"))
+		if bundle, ok := appBundle(binary); ok {
+			candidates = append(candidates, filepath.Join(filepath.Dir(bundle), "tasker-mcp"))
+		}
 	}
-	candidates := []string{filepath.Join(filepath.Dir(binary), "tasker-mcp")}
-	if bundle, ok := appBundle(binary); ok {
-		// Рядом с бандлом: собранное `wails3 task package` кладёт .app в bin/,
-		// куда попадает и tasker-mcp.
-		candidates = append(candidates, filepath.Join(filepath.Dir(bundle), "tasker-mcp"))
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, "bin", "tasker-mcp"))
 	}
+	// PATH последним: там он оказывается, только если человек положил его туда
+	// сам, и такой выбор перебивать своими догадками не стоит.
+	if found, err := exec.LookPath("tasker-mcp"); err == nil {
+		candidates = append(candidates, found)
+	}
+
 	for _, candidate := range candidates {
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate
