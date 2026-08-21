@@ -27,8 +27,59 @@ export interface Note {
     "NumDone": number;
     "Excerpt": string;
     "Trashed": boolean;
+
+    /**
+     * Origin повторяет поле frontmatter: заметку от агента список показывает
+     * иначе, а без колонки в индексе это пришлось бы выяснять чтением файла.
+     */
+    "Origin": string;
     "Tags": string[] | null;
     "Body": string;
     "Links": index$0.Record[] | null;
     "Backlinks": index$0.Record[] | null;
+}
+
+/**
+ * Stats — сводка о хранилище для экрана настроек.
+ */
+export interface Stats {
+    /**
+     * Active — заметки со статусом active или onHold, кроме корзины.
+     */
+    "Active": number;
+
+    /**
+     * All — все заметки, кроме корзины.
+     */
+    "All": number;
+
+    /**
+     * Agent — заведённые агентом, кроме корзины.
+     */
+    "Agent": number;
+
+    /**
+     * Trashed — то, что лежит в корзине.
+     */
+    "Trashed": number;
+
+    /**
+     * IndexSize — размер файла индекса в байтах.
+     */
+    "IndexSize": number;
+
+    /**
+     * AgentLast — когда агент последний раз писал. Нулевое время — не писал.
+     */
+    "AgentLast": string;
+
+    /**
+     * Notebooks — сколько ноутбуков, считая пустые.
+     */
+    "Notebooks": number;
+
+    /**
+     * Tags — сколько разных тегов.
+     */
+    "Tags": number;
 }

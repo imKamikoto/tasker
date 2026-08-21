@@ -184,3 +184,8 @@ func (n *Notes) Notebooks(ctx context.Context) ([]index.Notebook, error) {
 func (n *Notes) Tags(ctx context.Context) ([]index.Tag, error) {
 	return n.service.Tags(ctx)
 }
+
+// Counts возвращает счётчики для верхних пунктов сайдбара.
+func (n *Notes) Counts(ctx context.Context) (index.Counts, error) {
+	return n.service.Counts(ctx)
+}

@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"tasker/internal/gitstore"
 	"tasker/internal/index"
@@ -34,6 +36,14 @@ type Options struct {
 	// Origin помечает, кто вносит изменения. От него же зависит текст коммита
 	// (SPEC §4.2, §4.5).
 	Origin vault.Origin
+
+	// Autocommit собирает правки в пачку вместо коммита на каждое сохранение.
+	// Нулевое значение означает коммит сразу — так работает tasker-mcp: это
+	// разовый процесс, копить ему нечего и некогда.
+	//
+	// Пачка включается отдельно, через SetCommitWindow: до того как интерфейс
+	// прочитал настройки, безопаснее коммитить сразу.
+	Autocommit *gitstore.Autocommit
 }
 
 // Service — операции над заметками уровня пользователя.
@@ -44,6 +54,11 @@ type Service struct {
 	lock   *vaultLock
 	colors *colorStore
 	origin vault.Origin
+
+	auto *gitstore.Autocommit
+	// batching читается из вызовов вебвью, которые приходят параллельно,
+	// поэтому atomic, а не обычный bool под мьютексом сервиса.
+	batching atomic.Bool
 }
 
 // Open открывает vault, индекс и историю, создавая недостающее.
@@ -78,7 +93,42 @@ func Open(ctx context.Context, root string, opts Options) (*Service, error) {
 		lock:   newVaultLock(dir),
 		colors: newColorStore(dir),
 		origin: origin,
+		auto:   opts.Autocommit,
 	}, nil
+}
+
+// SetCommitWindow задаёт, как часто правки уезжают в историю.
+//
+// Ноль — коммит на каждое сохранение, как было всегда. Больше нуля — правки
+// собираются в пачку с таким окном. Терять при этом нечего: файл уже на диске,
+// git здесь история, а не хранилище (SPEC §2).
+func (s *Service) SetCommitWindow(d time.Duration) {
+	if s.auto == nil {
+		return
+	}
+	if d <= 0 {
+		s.batching.Store(false)
+		return
+	}
+	s.auto.SetDelay(d)
+	s.batching.Store(true)
+}
+
+// CommitWindow возвращает текущее окно. Ноль — коммит сразу.
+func (s *Service) CommitWindow() time.Duration {
+	if s.auto == nil || !s.batching.Load() {
+		return 0
+	}
+	return s.auto.Delay()
+}
+
+// FlushCommits немедленно фиксирует накопленное. Без пачки делать нечего:
+// всё уже закоммичено.
+func (s *Service) FlushCommits(ctx context.Context) error {
+	if s.auto == nil {
+		return nil
+	}
+	return s.auto.Flush(ctx)
 }
 
 func (s *Service) Close() error         { return s.index.Close() }
@@ -837,6 +887,14 @@ func (s *Service) reindex(ctx context.Context, n *vault.Note) (index.Record, err
 // commit фиксирует изменения. Текст сообщения зависит от того, кто их внёс
 // (SPEC §4.5).
 func (s *Service) commit(ctx context.Context, action, title string) error {
+	// Пачка включена — правка только отмечается, а коммит сделает цикл.
+	// Агент сюда не попадает: у него свой текст сообщения, который в общей
+	// пачке собрать не из чего, да и живёт он один вызов.
+	if s.auto != nil && s.batching.Load() && s.origin != vault.OriginAgent {
+		s.auto.Touch(title)
+		return nil
+	}
+
 	message := gitstore.NotesMessage([]string{title})
 	if s.origin == vault.OriginAgent {
 		message = gitstore.AgentMessage(action, title)

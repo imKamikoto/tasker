@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"tasker/internal/index"
 	"tasker/internal/vault"
@@ -190,4 +191,75 @@ func (s *Service) DeleteNotebook(ctx context.Context, path string) ([]index.Reco
 		return trashed, err
 	}
 	return trashed, nil
+}
+
+// Counts отдаёт счётчики для верхних пунктов сайдбара.
+func (s *Service) Counts(ctx context.Context) (index.Counts, error) {
+	return s.index.Counts(ctx)
+}
+
+// Rebuild сносит индекс и собирает его заново по файлам.
+//
+// Безопасно всегда: индекс производный, правда в файлах (SPEC §5.2). Нужен,
+// когда индекс разошёлся с диском — например, после правки vault другими
+// инструментами при закрытом приложении.
+func (s *Service) Rebuild(ctx context.Context) (index.ScanResult, error) {
+	release, err := s.lock.acquire(ctx)
+	if err != nil {
+		return index.ScanResult{}, err
+	}
+	defer release()
+
+	if err := s.index.Reset(ctx); err != nil {
+		return index.ScanResult{}, err
+	}
+	result, err := s.index.Scan(ctx, s.vault)
+	if err != nil {
+		return result, err
+	}
+	// Цвета тегов живут в файле и переживают пересборку — возвращаем их.
+	if err := s.index.ApplyTagColors(ctx, s.colors.load()); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// Stats — сводка о хранилище для экрана настроек.
+type Stats struct {
+	index.Counts
+	// IndexSize — размер файла индекса в байтах.
+	IndexSize int64
+	// AgentLast — когда агент последний раз писал. Нулевое время — не писал.
+	AgentLast time.Time
+	// Notebooks — сколько ноутбуков, считая пустые.
+	Notebooks int
+	// Tags — сколько разных тегов.
+	Tags int
+}
+
+// Stats собирает сводку одним вызовом: экран настроек показывает её целиком.
+func (s *Service) Stats(ctx context.Context) (Stats, error) {
+	counts, err := s.index.Counts(ctx)
+	if err != nil {
+		return Stats{}, err
+	}
+	last, err := s.index.LastAgentWrite(ctx)
+	if err != nil {
+		return Stats{}, err
+	}
+	books, err := s.Notebooks(ctx)
+	if err != nil {
+		return Stats{}, err
+	}
+	tags, err := s.index.Tags(ctx)
+	if err != nil {
+		return Stats{}, err
+	}
+	return Stats{
+		Counts:    counts,
+		IndexSize: s.index.Size(),
+		AgentLast: last,
+		Notebooks: len(books),
+		Tags:      len(tags),
+	}, nil
 }

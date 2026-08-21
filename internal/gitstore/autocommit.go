@@ -25,9 +25,30 @@ type Autocommit struct {
 	// wake будит цикл, не блокируя того, кто правит заметку.
 	wake chan struct{}
 
-	mu     sync.Mutex
-	titles []string
-	seen   map[string]struct{}
+	mu      sync.Mutex
+	delayMu sync.RWMutex
+	titles  []string
+	seen    map[string]struct{}
+}
+
+// SetDelay меняет окно на лету. Уже запущенный отсчёт не трогает: сдвигать
+// его при каждой правке настроек значит откладывать коммит бесконечно —
+// ровно та ошибка, из-за которой окно считается от первой правки, а не от
+// последней.
+func (a *Autocommit) SetDelay(d time.Duration) {
+	if d <= 0 {
+		d = DefaultDelay
+	}
+	a.delayMu.Lock()
+	a.delay = d
+	a.delayMu.Unlock()
+}
+
+// Delay возвращает текущее окно.
+func (a *Autocommit) Delay() time.Duration {
+	a.delayMu.RLock()
+	defer a.delayMu.RUnlock()
+	return a.delay
 }
 
 // NewAutocommit создаёт автокоммит. Нулевая задержка заменяется DefaultDelay,
@@ -101,7 +122,7 @@ func (a *Autocommit) Run(ctx context.Context) {
 
 		case <-a.wake:
 			if timer == nil {
-				timer = time.NewTimer(a.delay)
+				timer = time.NewTimer(a.Delay())
 				fire = timer.C
 			}
 

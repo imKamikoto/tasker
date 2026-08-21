@@ -32,9 +32,10 @@ var ErrKeymapTooBig = errors.New("keymap too big")
 // а в тексте принадлежит виму, и разводит их именно контекст, а не порядок
 // проверок в обработчике.
 const (
-	ContextGlobal = "global"
-	ContextList   = "note-list"
-	ContextEditor = "editor"
+	ContextGlobal  = "global"
+	ContextSidebar = "sidebar"
+	ContextList    = "note-list"
+	ContextEditor  = "editor"
 )
 
 // defaultKeymap — раскладка по умолчанию.
@@ -45,12 +46,46 @@ const (
 func defaultKeymap() map[string]map[string]string {
 	return map[string]map[string]string{
 		ContextGlobal: {
-			"cmd+n":      "note.create",
+			"cmd+n": "note.create",
+			// Запятая с cmd — общесистемное «настройки», человек попробует её
+			// первой, ещё не зная, есть она здесь или нет.
+			"cmd+,":      "note.settings",
 			"cmd+ctrl+1": "note.status.none",
 			"cmd+ctrl+2": "note.status.active",
 			"cmd+ctrl+3": "note.status.onhold",
 			"cmd+ctrl+4": "note.status.completed",
 			"cmd+ctrl+5": "note.status.dropped",
+			// Фокус ходит по трём колонкам. H и L, а не J и K: колонки стоят
+			// рядом, и влево-вправо здесь то же движение, что и у вима.
+			// С шифтом, потому что голые Ctrl+H и Ctrl+L в CodeMirror заняты
+			// (backspace и «выделить строку») и в режиме вставки нужны тексту.
+			// Ctrl+Shift+* не занят ни вимом, ни редактором, поэтому работает
+			// откуда угодно, без предварительного Esc.
+			"ctrl+shift+h": "focus.prev",
+			"ctrl+shift+l": "focus.next",
+			// Сайдбар прячется и возвращается — как во всех трёхколоночных
+			// приложениях macOS.
+			"cmd+/": "view.sidebar",
+			// Масштаб интерфейса. Обе формы плюса: на маке Cmd+= и Cmd++ —
+			// одна и та же клавиша, и человек не должен об этом думать.
+			"cmd+=": "view.zoom.in",
+			"cmd++": "view.zoom.in",
+			"cmd+-": "view.zoom.out",
+			"cmd+0": "view.zoom.reset",
+		},
+
+		ContextSidebar: {
+			"j":     "sidebar.down",
+			"k":     "sidebar.up",
+			"down":  "sidebar.down",
+			"up":    "sidebar.up",
+			"enter": "sidebar.open",
+			// Свернуть и развернуть ветку: в дереве это движение поперёк,
+			// поэтому влево-вправо, как в файловых менеджерах и в NERDTree.
+			"left":  "sidebar.collapse",
+			"right": "sidebar.expand",
+			"h":     "sidebar.collapse",
+			"l":     "sidebar.expand",
 		},
 		ContextList: {
 			"j":     "list.down",

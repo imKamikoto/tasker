@@ -22,6 +22,13 @@ import * as index$0 from "../index/models.js";
 import * as notes$0 from "../notes/models.js";
 
 /**
+ * Counts возвращает счётчики для верхних пунктов сайдбара.
+ */
+export function Counts(): $CancellablePromise<index$0.Counts> {
+    return $Call.ByID(1597084356);
+}
+
+/**
  * Create заводит заметку и возвращает её строку индекса.
  */
 export function Create(title: string, notebook: string): $CancellablePromise<index$0.Record> {
