@@ -193,19 +193,39 @@ tasks:
       - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true{{if eq .OBFUSCATED "true"}} -obfuscated{{end}} -ts -i ./cmd/tasker
 
   generate:icons:
-    summary: Generates Windows `.ico` and Mac `.icns` from an image; on macOS, `-iconcomposerinput appicon.icon -macassetdir darwin` also produces `Assets.car` from a `.icon` file (skipped on other platforms).
+    summary: Собирает darwin/icons.icns из подготовленных размеров в darwin/icon.
     run: once
     dir: build
     sources:
-      - "appicon.png"
-      - "appicon.icon"
+      - "darwin/icon/*.png"
     generates:
       - "darwin/icons.icns"
     cmds:
-      # windows-иконку генератор пишет всегда, отключить её нечем. Платформа у
-      # нас одна (SPEC §9), поэтому кладём её рядом с macOS-иконкой в файл,
-      # который лежит в .gitignore.
-      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename darwin/unused-windows-icon.ico -iconcomposerinput appicon.icon -macassetdir darwin
+      # Своя сборка, а не `wails3 generate icons`. Тот масштабирует одну
+      # картинку на все размеры, а мелкие нарисованы отдельно — на 16 и 32
+      # точечной вуали нет, и даунскейл 1024-й превратил бы её в кашу.
+      #
+      # Icon Composer (appicon.icon → Assets.car) не используется намеренно:
+      # иконка нарисована готовой плиткой со своим скруглением и фоном, а он
+      # накладывает поверх собственную форму и материал.
+      - rm -rf "{{.TASKER_ICONSET}}"
+      - mkdir -p "{{.TASKER_ICONSET}}"
+      - cp darwin/icon/tasker-16.png   "{{.TASKER_ICONSET}}/icon_16x16.png"
+      - cp darwin/icon/tasker-32.png   "{{.TASKER_ICONSET}}/icon_16x16@2x.png"
+      - cp darwin/icon/tasker-32.png   "{{.TASKER_ICONSET}}/icon_32x32.png"
+      - cp darwin/icon/tasker-64.png   "{{.TASKER_ICONSET}}/icon_32x32@2x.png"
+      - cp darwin/icon/tasker-128.png  "{{.TASKER_ICONSET}}/icon_128x128.png"
+      - cp darwin/icon/tasker-256.png  "{{.TASKER_ICONSET}}/icon_128x128@2x.png"
+      - cp darwin/icon/tasker-256.png  "{{.TASKER_ICONSET}}/icon_256x256.png"
+      - cp darwin/icon/tasker-512.png  "{{.TASKER_ICONSET}}/icon_256x256@2x.png"
+      - cp darwin/icon/tasker-512.png  "{{.TASKER_ICONSET}}/icon_512x512.png"
+      - cp darwin/icon/tasker-1024.png "{{.TASKER_ICONSET}}/icon_512x512@2x.png"
+      - iconutil -c icns "{{.TASKER_ICONSET}}" -o darwin/icons.icns
+      - rm -rf "{{.TASKER_ICONSET}}"
+    vars:
+      # Имя обязано оканчиваться на .iconset — иначе iconutil отвечает
+      # «Invalid Iconset» и не объясняет, чем именно недоволен.
+      TASKER_ICONSET: ".tasker.iconset"
 
   dev:frontend:
     summary: Runs the frontend in development mode

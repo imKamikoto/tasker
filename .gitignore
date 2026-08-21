@@ -25,3 +25,6 @@ oak-go/phase0/*/.task/
 
 # Генератор иконок Wails всегда делает и windows-иконку; она нам не нужна
 /build/darwin/unused-windows-icon.ico
+
+# Временная папка сборки иконки
+build/.tasker.iconset/
