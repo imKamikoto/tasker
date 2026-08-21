@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"time"
+
+	"tasker/internal/vault"
 
 	_ "modernc.org/sqlite"
 )
@@ -17,6 +20,9 @@ var ErrNotFound = errors.New("note not in index")
 // Index — производный поисковый индекс поверх vault.
 type Index struct {
 	db *sql.DB
+	// path хранится ради Size: настройки показывают, сколько весит индекс,
+	// а спросить об этом сам SQLite можно только страницами.
+	path string
 }
 
 // FileState — то, по чему инкрементальный скан решает, менялся ли файл
@@ -39,7 +45,7 @@ func Open(ctx context.Context, path string) (*Index, error) {
 	// приходят конкурентно и никем не сериализуются.
 	db.SetMaxOpenConns(1)
 
-	ix := &Index{db: db}
+	ix := &Index{db: db, path: path}
 	if err := ix.ensureSchema(ctx); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("open index %s: %w", path, err)
@@ -68,7 +74,29 @@ func (ix *Index) ensureSchema(ctx context.Context) error {
 	if version == schemaVersion {
 		return nil
 	}
+	return ix.recreate(ctx)
+}
 
+// Reset сносит содержимое индекса и создаёт схему заново.
+//
+// Разрешено потому, что индекс производный: правда в файлах, и следующий скан
+// восстановит его целиком (SPEC §5.2). Нужен, когда индекс разошёлся с диском —
+// правильный ответ на это «перестроить индекс», а не «поправить файлы».
+func (ix *Index) Reset(ctx context.Context) error {
+	return ix.recreate(ctx)
+}
+
+// Size возвращает размер файла индекса в байтах. Ноль, если файла ещё нет или
+// индекс держится в памяти.
+func (ix *Index) Size() int64 {
+	info, err := os.Stat(ix.path)
+	if err != nil {
+		return 0
+	}
+	return info.Size()
+}
+
+func (ix *Index) recreate(ctx context.Context) error {
 	for _, stmt := range dropSQL {
 		if _, err := ix.db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("drop schema: %w", err)
@@ -117,6 +145,12 @@ func (ix *Index) Put(ctx context.Context, r Record) error {
 	}
 	defer tx.Rollback()
 
+	// Пустой origin — это «человек». Приводим здесь, а не у каждого, кто
+	// собирает Record руками: колонка не должна хранить два вида «не агент».
+	if r.Origin == "" {
+		r.Origin = string(vault.OriginUser)
+	}
+
 	// Путь уникален. Если заметка переехала на место другой, а строку той ещё
 	// не удалили, вставка упадёт на UNIQUE — убираем занявшего заранее.
 	if err := deleteByPath(ctx, tx, r.Path, r.ID); err != nil {
@@ -126,18 +160,20 @@ func (ix *Index) Put(ctx context.Context, r Record) error {
 	var rowid int64
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO notes (id, path, notebook, title, status, pinned,
-		                   created, updated, mtime, size, num_tasks, num_done, excerpt, trashed)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		                   created, updated, mtime, size, num_tasks, num_done, excerpt,
+		                   trashed, origin)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			path = excluded.path, notebook = excluded.notebook, title = excluded.title,
 			status = excluded.status, pinned = excluded.pinned, created = excluded.created,
 			updated = excluded.updated, mtime = excluded.mtime, size = excluded.size,
 			num_tasks = excluded.num_tasks, num_done = excluded.num_done,
-			excerpt = excluded.excerpt, trashed = excluded.trashed
+			excerpt = excluded.excerpt, trashed = excluded.trashed,
+			origin = excluded.origin
 		RETURNING rowid`,
 		r.ID, r.Path, r.Notebook, r.Title, r.Status, r.Pinned,
 		r.Created.Unix(), r.Updated.Unix(), r.ModTime.UnixNano(), r.Size,
-		r.NumTasks, r.NumDone, r.Excerpt, r.Trashed).Scan(&rowid)
+		r.NumTasks, r.NumDone, r.Excerpt, r.Trashed, r.Origin).Scan(&rowid)
 	if err != nil {
 		return fmt.Errorf("put note %s: %w", r.ID, err)
 	}
@@ -222,10 +258,11 @@ func (ix *Index) Get(ctx context.Context, id string) (Record, error) {
 	)
 	err := ix.db.QueryRowContext(ctx, `
 		SELECT id, path, notebook, title, status, pinned,
-		       created, updated, mtime, size, num_tasks, num_done, excerpt, trashed
+		       created, updated, mtime, size, num_tasks, num_done, excerpt, trashed, origin
 		FROM notes WHERE id = ?`, id).Scan(
 		&r.ID, &r.Path, &r.Notebook, &r.Title, &r.Status, &r.Pinned,
-		&created, &updated, &mtime, &r.Size, &r.NumTasks, &r.NumDone, &r.Excerpt, &r.Trashed)
+		&created, &updated, &mtime, &r.Size, &r.NumTasks, &r.NumDone, &r.Excerpt,
+		&r.Trashed, &r.Origin)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Record{}, fmt.Errorf("get note %s: %w", id, ErrNotFound)
 	}

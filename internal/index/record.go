@@ -35,8 +35,11 @@ type Record struct {
 	NumDone  int
 	Excerpt  string
 	Trashed  bool
-	Tags     []string
-	Links    []string
+	// Origin повторяет поле frontmatter: заметку от агента список показывает
+	// иначе, а без колонки в индексе это пришлось бы выяснять чтением файла.
+	Origin string
+	Tags   []string
+	Links  []string
 
 	// Body уходит в полнотекстовый индекс и обратно не читается: таблица
 	// contentless, содержимое в ней не хранится.
@@ -56,6 +59,10 @@ func RecordFrom(n *vault.Note) (Record, error) {
 		return Record{}, fmt.Errorf("record from %s: %w", n.Path, err)
 	}
 	pinned, err := f.Pinned()
+	if err != nil {
+		return Record{}, fmt.Errorf("record from %s: %w", n.Path, err)
+	}
+	origin, err := f.Origin()
 	if err != nil {
 		return Record{}, fmt.Errorf("record from %s: %w", n.Path, err)
 	}
@@ -99,6 +106,7 @@ func RecordFrom(n *vault.Note) (Record, error) {
 		NumDone:  done,
 		Excerpt:  Excerpt(n.Doc.Body),
 		Trashed:  inTrash(n.Notebook),
+		Origin:   string(origin),
 		Tags:     tags,
 		Links:    ExtractLinks(n.Doc.Body),
 		Body:     n.Doc.Body,

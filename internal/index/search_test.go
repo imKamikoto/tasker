@@ -29,7 +29,7 @@ func seed(t *testing.T, ix *Index) {
 		{
 			ID: "01K3QF8ZN7X2WPBV4YHMC6TDA3", Path: "Личное/pokupki.md",
 			Notebook: "Личное", Title: "Покупки", Status: "none", Pinned: false,
-			Tags: []string{"черновик"},
+			Origin: "agent", Tags: []string{"черновик"},
 			Body: "Купить миграции чего-нибудь к чаю",
 		},
 		{
@@ -105,6 +105,8 @@ func TestSearchForms(t *testing.T) {
 		{"status:active", []string{"Счётчик перерасчёта"}},
 		{"status:onHold", []string{"План на квартал"}},
 		{"is:pinned", []string{"План на квартал"}},
+		{"is:agent", []string{"Покупки"}},
+		{"миграци -is:agent", []string{"План на квартал"}},
 		{"has:task", []string{"Счётчик перерасчёта"}},
 		{"миграци -tag:черновик", []string{"План на квартал"}},
 		{"миграци -book:Личное", []string{"План на квартал"}},

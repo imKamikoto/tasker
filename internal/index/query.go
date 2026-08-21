@@ -31,6 +31,8 @@ const (
 	TermStatus
 	TermPinned
 	TermTask
+	// TermAgent — заметка заведена агентом (frontmatter origin: agent).
+	TermAgent
 )
 
 // Term — одно условие запроса.
@@ -168,7 +170,14 @@ func parseToken(tok token) (Term, error) {
 			return Term{}, fmt.Errorf("parse %q: %w", tok.raw, ErrUnknownValue)
 		}
 	case "is":
-		if !strings.EqualFold(value, "pinned") {
+		// У is два значения, и они дают разные условия, поэтому вид терма
+		// выбирается здесь, а не по одной записи в prefixes.
+		switch strings.ToLower(value) {
+		case "pinned":
+			return Term{Kind: TermPinned, Value: value, Negated: negated}, nil
+		case "agent":
+			return Term{Kind: TermAgent, Value: value, Negated: negated}, nil
+		default:
 			return Term{}, fmt.Errorf("parse %q: %w", tok.raw, ErrUnknownValue)
 		}
 	case "has":

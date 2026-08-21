@@ -160,3 +160,19 @@ func TestNotebooksAndTagsOnEmptyIndex(t *testing.T) {
 		t.Errorf("Tags = %v, %v", tags, err)
 	}
 }
+
+func TestCounts(t *testing.T) {
+	ix, _ := testIndex(t)
+	seed(t, ix)
+
+	got, err := ix.Counts(context.Background())
+	if err != nil {
+		t.Fatalf("Counts: %v", err)
+	}
+	// В seed: active + onHold — «Счётчик» и «План», всего не в корзине четыре,
+	// от агента одна «Покупки», в корзине одна.
+	want := Counts{Active: 2, All: 4, Agent: 1, Trashed: 1}
+	if got != want {
+		t.Errorf("Counts = %+v, ожидалось %+v", got, want)
+	}
+}

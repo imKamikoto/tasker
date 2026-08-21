@@ -110,7 +110,7 @@ func (ix *Index) Search(ctx context.Context, q Query, opts SearchOptions) ([]Rec
 	sqlText := `
 		SELECT n.id, n.path, n.notebook, n.title, n.status, n.pinned,
 		       n.created, n.updated, n.mtime, n.size, n.num_tasks, n.num_done,
-		       n.excerpt, n.trashed
+		       n.excerpt, n.trashed, n.origin
 		FROM notes n`
 	if len(where) > 0 {
 		sqlText += "\n\t\tWHERE " + strings.Join(where, "\n\t\t  AND ")
@@ -138,7 +138,7 @@ func (ix *Index) Search(ctx context.Context, q Query, opts SearchOptions) ([]Rec
 		)
 		if err := rows.Scan(&r.ID, &r.Path, &r.Notebook, &r.Title, &r.Status, &r.Pinned,
 			&created, &updated, &mtime, &r.Size, &r.NumTasks, &r.NumDone,
-			&r.Excerpt, &r.Trashed); err != nil {
+			&r.Excerpt, &r.Trashed, &r.Origin); err != nil {
 			return nil, fmt.Errorf("search: %w", err)
 		}
 		r.Created = time.Unix(created, 0)
@@ -235,6 +235,9 @@ func (q Query) conditions() ([]string, []any, error) {
 
 		case TermPinned:
 			clauses = append(clauses, negate(t, `n.pinned = 1`))
+
+		case TermAgent:
+			clauses = append(clauses, negate(t, `n.origin = 'agent'`))
 
 		case TermTask:
 			// «Есть незакрытые чекбоксы» (SPEC §8.5), а не «есть чекбоксы вообще».

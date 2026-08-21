@@ -25,6 +25,7 @@ func TestParseQueryForms(t *testing.T) {
 		{"title:счётчик", []Term{field("title", "счётчик")}},
 		{"body:счётчик", []Term{field("body", "счётчик")}},
 		{"is:pinned", []Term{kind(TermPinned, "pinned")}},
+		{"is:agent", []Term{kind(TermAgent, "agent")}},
 		{"has:task", []Term{kind(TermTask, "task")}},
 		{"слово -tag:черновик", []Term{text("слово"), neg(kind(TermTag, "черновик"))}},
 		{`слово -"точная фраза"`, []Term{text("слово"), neg(text("точная фраза"))}},

@@ -3,7 +3,7 @@ package index
 // schemaVersion меняется при любой правке схемы ниже. Не совпала с тем, что
 // лежит в файле, — индекс сносится и строится заново. Это всегда безопасно:
 // правда в файлах, индекс производный (SPEC §5.2).
-const schemaVersion = "1"
+const schemaVersion = "2"
 
 // schemaSQL — схема из SPEC §5.1.
 //
@@ -27,7 +27,8 @@ CREATE TABLE notes (
   num_tasks   INTEGER NOT NULL DEFAULT 0,
   num_done    INTEGER NOT NULL DEFAULT 0,
   excerpt     TEXT NOT NULL DEFAULT '',
-  trashed     INTEGER NOT NULL DEFAULT 0
+  trashed     INTEGER NOT NULL DEFAULT 0,
+  origin      TEXT NOT NULL DEFAULT 'user'   -- кто завёл заметку: человек или агент
 );
 CREATE INDEX idx_notes_notebook ON notes(notebook);
 CREATE INDEX idx_notes_updated  ON notes(updated DESC);

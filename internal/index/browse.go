@@ -2,6 +2,7 @@ package index
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sort"
 	"strconv"
@@ -196,4 +197,53 @@ func (ix *Index) ApplyTagColors(ctx context.Context, colors map[string]int) erro
 		}
 	}
 	return tx.Commit()
+}
+
+// Counts — счётчики для верхних пунктов сайдбара (макет T5).
+//
+// Одним запросом, а не четырьмя поисками: цифры пересчитываются на каждое
+// изменение в vault, и гонять ради них полный SELECT четыре раза незачем.
+type Counts struct {
+	// Active — заметки со статусом active или onHold, кроме корзины.
+	Active int
+	// All — все заметки, кроме корзины.
+	All int
+	// Agent — заведённые агентом, кроме корзины.
+	Agent int
+	// Trashed — то, что лежит в корзине.
+	Trashed int
+}
+
+// Counts считает заметки по разрезам, которые показывает сайдбар.
+func (ix *Index) Counts(ctx context.Context) (Counts, error) {
+	var c Counts
+	err := ix.db.QueryRowContext(ctx, `
+		SELECT
+			count(*) FILTER (WHERE trashed = 0 AND status IN ('active', 'onHold')),
+			count(*) FILTER (WHERE trashed = 0),
+			count(*) FILTER (WHERE trashed = 0 AND origin = 'agent'),
+			count(*) FILTER (WHERE trashed = 1)
+		FROM notes`).Scan(&c.Active, &c.All, &c.Agent, &c.Trashed)
+	if err != nil {
+		return Counts{}, fmt.Errorf("counts: %w", err)
+	}
+	return c, nil
+}
+
+// LastAgentWrite — когда агент в последний раз что-то записал.
+//
+// Нулевое время означает, что он ещё не писал сюда ни разу. Настройки
+// показывают это рядом со счётчиком: «восемь заметок» без даты не отвечает на
+// вопрос, работает агент сейчас или отметился полгода назад.
+func (ix *Index) LastAgentWrite(ctx context.Context) (time.Time, error) {
+	var updated sql.NullInt64
+	err := ix.db.QueryRowContext(ctx,
+		`SELECT max(updated) FROM notes WHERE origin = 'agent' AND trashed = 0`).Scan(&updated)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("last agent write: %w", err)
+	}
+	if !updated.Valid {
+		return time.Time{}, nil
+	}
+	return time.Unix(updated.Int64, 0), nil
 }
