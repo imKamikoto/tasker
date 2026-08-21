@@ -402,6 +402,8 @@ export default function App() {
           onClose={() => setSelected([])}
           conflict={conflict}
           focusToken={focusToken}
+          knownTags={tags.map((tag) => tag.Name)}
+          onTags={(next) => act(api.setTags(note.ID, next), true)}
           onReload={() => {
             // Пересоздание редактора выбрасывает буфер вместе с ним.
             dirty.current = false;
@@ -436,7 +438,8 @@ function step(notes: Note[], selected: string | null, direction: 1 | -1): string
 function buildQuery(filter: Filter, query: string): string {
   const parts: string[] = [];
   if (filter.kind === "notebook") parts.push(`book:${quote(filter.path)}`);
-  if (filter.kind === "tag") parts.push(`tag:${quote(filter.name)}`);
+  // Несколько тегов соединяются через И — это делает сам язык запросов.
+  if (filter.kind === "tags") parts.push(...filter.names.map((name) => `tag:${quote(name)}`));
   if (query.trim() !== "") parts.push(query.trim());
   return parts.join(" ");
 }

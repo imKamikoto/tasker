@@ -856,3 +856,146 @@ func TestBulkContinuesAfterActionFailure(t *testing.T) {
 		t.Errorf("живых осталось %d — пачка оборвалась на сбое", len(live))
 	}
 }
+
+// Критерий приёмки SPEC §8.2: переименование проходит по всем заметкам,
+// переписывает frontmatter, одной операцией и одним коммитом.
+func TestRenameTag(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	for _, tags := range [][]string{{"баг", "срочно"}, {"баг"}, {"идея"}} {
+		if _, err := s.Create(ctx, CreateParams{Title: "Заметка " + tags[0], Tags: tags}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := commitCount(t, root)
+
+	updated, err := s.RenameTag(ctx, "баг", "дефект")
+	if err != nil {
+		t.Fatalf("RenameTag: %v", err)
+	}
+	if len(updated) != 2 {
+		t.Fatalf("тронуто %d заметок, ожидалось 2", len(updated))
+	}
+	if added := commitCount(t, root) - before; added != 1 {
+		t.Errorf("коммитов добавилось %d, ожидался один", added)
+	}
+
+	// Старого тега больше нет ни у кого, новый есть у обеих.
+	if old, err := s.Search(ctx, "tag:баг", SearchOptions{}); err != nil || len(old) != 0 {
+		t.Errorf("по старому тегу нашлось %d: %v", len(old), err)
+	}
+	renamed, err := s.Search(ctx, "tag:дефект", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(renamed) != 2 {
+		t.Errorf("по новому тегу нашлось %d", len(renamed))
+	}
+	// Соседние теги не пострадали.
+	if other, err := s.Search(ctx, "tag:срочно", SearchOptions{}); err != nil || len(other) != 1 {
+		t.Errorf("тег «срочно» = %d: %v", len(other), err)
+	}
+}
+
+// Заметка несла и старый, и новый тег: после переименования он должен остаться
+// один, а не задвоиться.
+func TestRenameTagMerges(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	created, err := s.Create(ctx, CreateParams{Title: "Обе", Tags: []string{"баг", "дефект"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.RenameTag(ctx, "баг", "дефект"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Tags) != 1 || got.Tags[0] != "дефект" {
+		t.Errorf("теги = %v, ожидался один «дефект»", got.Tags)
+	}
+
+	// Проверяем по файлу, а не только по индексу: в note_tags стоит
+	// INSERT OR IGNORE, и дубль там схлопнется, оставшись в frontmatter.
+	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(got.Path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "tags: [дефект]") {
+		t.Errorf("во frontmatter теги задвоились:\n%s", raw)
+	}
+}
+
+// Латиница в тегах регистронезависима, поэтому BUG должен переименоваться
+// вместе с bug (см. TestSearchTagCaseFolding в internal/index).
+func TestRenameTagAsciiCase(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	created, err := s.Create(ctx, CreateParams{Title: "Заметка", Tags: []string{"BUG"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.RenameTag(ctx, "bug", "defect"); err != nil {
+		t.Fatalf("RenameTag: %v", err)
+	}
+	got, err := s.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Tags) != 1 || got.Tags[0] != "defect" {
+		t.Errorf("теги = %v", got.Tags)
+	}
+}
+
+func TestRenameTagEdgeCases(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, CreateParams{Title: "Заметка", Tags: []string{"баг"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.RenameTag(ctx, "  ", "дефект"); !errors.Is(err, ErrEmptyTag) {
+		t.Errorf("пустое имя: %v", err)
+	}
+	if _, err := s.RenameTag(ctx, "баг", ""); !errors.Is(err, ErrEmptyTag) {
+		t.Errorf("пустое новое имя: %v", err)
+	}
+	if updated, err := s.RenameTag(ctx, "баг", "баг"); err != nil || len(updated) != 0 {
+		t.Errorf("переименование в себя: %+v, %v", updated, err)
+	}
+	if updated, err := s.RenameTag(ctx, "которого-нет", "новый"); err != nil || len(updated) != 0 {
+		t.Errorf("несуществующий тег: %+v, %v", updated, err)
+	}
+}
+
+func TestSetTags(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	created, err := s.Create(ctx, CreateParams{Title: "Заметка", Tags: []string{"старый", "тоже старый"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Замена целиком, а не добавление.
+	updated, err := s.SetTags(ctx, created.ID, []string{"новый"})
+	if err != nil {
+		t.Fatalf("SetTags: %v", err)
+	}
+	if len(updated.Tags) != 1 || updated.Tags[0] != "новый" {
+		t.Errorf("теги = %v", updated.Tags)
+	}
+
+	// Пустые и повторы отбрасываются, регистр учитывается как в поиске.
+	cleaned, err := s.SetTags(ctx, created.ID, []string{" один ", "", "  ", "один", "ОДИН", "два"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cleaned.Tags) != 2 {
+		t.Errorf("теги = %v, ожидались два", cleaned.Tags)
+	}
+}

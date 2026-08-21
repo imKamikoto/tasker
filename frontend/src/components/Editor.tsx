@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, describeError, events, subscribe, type Note, type NoteRecord } from "../api";
 import { CodeMirror } from "./CodeMirror";
+import { TagField } from "./TagField";
 
 /** Сколько ждать после последней правки перед записью (SPEC §, фаза 3). */
 const saveDelay = 400;
@@ -16,6 +17,8 @@ type Props = {
   /** Файл изменился на диске, пока в буфере есть несохранённое. */
   conflict: boolean;
   focusToken: number;
+  knownTags: string[];
+  onTags: (tags: string[]) => void;
   onReload: () => void;
   onKeepMine: () => void;
 };
@@ -36,6 +39,8 @@ export function Editor({
   onClose,
   conflict,
   focusToken,
+  knownTags,
+  onTags,
   onReload,
   onKeepMine,
 }: Props) {
@@ -133,16 +138,13 @@ export function Editor({
       <div className="editor__meta">
         <span>{note.Notebook || "Корень"}</span>
         {note.Status !== "none" && <span className="status">{note.Status}</span>}
-        {(note.Tags ?? []).map((tag) => (
-          <span key={tag} className="tag">
-            #{tag}
-          </span>
-        ))}
         {(note.Backlinks?.length ?? 0) > 0 && <span>ссылаются: {note.Backlinks?.length}</span>}
         <span className="editor__state" data-state={state}>
           {stateLabel(state)}
         </span>
       </div>
+
+      <TagField tags={note.Tags ?? []} known={knownTags} onChange={onTags} />
 
       {conflict && (
         <div className="conflict">

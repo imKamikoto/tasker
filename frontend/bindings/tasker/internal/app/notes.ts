@@ -69,6 +69,13 @@ export function Notebooks(): $CancellablePromise<index$0.Notebook[] | null> {
 }
 
 /**
+ * RenameTag переименовывает тег во всех заметках одним коммитом (SPEC §8.2).
+ */
+export function RenameTag($from: string, to: string): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(2644956362, $from, to);
+}
+
+/**
  * Restore возвращает заметку из корзины туда, откуда она уехала.
  */
 export function Restore(id: string): $CancellablePromise<index$0.Record> {
@@ -115,6 +122,13 @@ export function SetStatus(id: string, status: string): $CancellablePromise<index
 
 export function SetStatusMany(ids: string[] | null, status: string): $CancellablePromise<index$0.Record[] | null> {
     return $Call.ByID(2900221013, ids, status);
+}
+
+/**
+ * SetTags заменяет теги заметки целиком: поле под заголовком правится так.
+ */
+export function SetTags(id: string, tags: string[] | null): $CancellablePromise<index$0.Record> {
+    return $Call.ByID(3408374185, id, tags);
 }
 
 /**

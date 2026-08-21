@@ -445,3 +445,85 @@ button.row__label {
 .picker__list {
   overflow-y: auto;
 }
+
+/* Теги заметки: чипы плюс поле добавления с подсказками. */
+.tagfield {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 7px;
+  border-radius: 3px;
+  background: var(--color-oak-100);
+  color: var(--color-oak-600);
+  font-size: 11px;
+}
+
+/* Оттенок по имени тега: палитра на 14 значений (SPEC §8.2). Крутим тон
+   вокруг дубового, чтобы теги отличались, но не выпадали из темы. */
+.chip[data-color="1"] { color: hsl(14deg 45% 66%); }
+.chip[data-color="2"] { color: hsl(40deg 55% 64%); }
+.chip[data-color="3"] { color: hsl(66deg 35% 60%); }
+.chip[data-color="4"] { color: hsl(92deg 32% 60%); }
+.chip[data-color="5"] { color: hsl(118deg 32% 62%); }
+.chip[data-color="6"] { color: hsl(146deg 35% 60%); }
+.chip[data-color="7"] { color: hsl(172deg 35% 58%); }
+.chip[data-color="8"] { color: hsl(196deg 40% 62%); }
+.chip[data-color="9"] { color: hsl(214deg 45% 68%); }
+.chip[data-color="10"] { color: hsl(242deg 40% 70%); }
+.chip[data-color="11"] { color: hsl(272deg 35% 68%); }
+.chip[data-color="12"] { color: hsl(302deg 32% 66%); }
+.chip[data-color="13"] { color: hsl(330deg 42% 68%); }
+
+.chip__remove {
+  border: 0;
+  padding: 0 2px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chip__remove:hover {
+  opacity: 1;
+}
+
+.tagfield__entry {
+  position: relative;
+}
+
+.tagfield__input {
+  width: 72px;
+  border: 0;
+  background: none;
+  color: var(--color-fg-muted);
+  font: inherit;
+  font-size: 11px;
+}
+
+.tagfield__input:focus {
+  outline: none;
+  color: var(--color-fg);
+}
+
+.tagfield__suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  min-width: 160px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 8px 24px hsl(var(--hsl-bg-shadow) / 0.6);
+}

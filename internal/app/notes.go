@@ -145,6 +145,16 @@ func (n *Notes) Delete(ctx context.Context, id string) error {
 	return n.service.Delete(ctx, id)
 }
 
+// RenameTag переименовывает тег во всех заметках одним коммитом (SPEC §8.2).
+func (n *Notes) RenameTag(ctx context.Context, from, to string) ([]index.Record, error) {
+	return n.service.RenameTag(ctx, from, to)
+}
+
+// SetTags заменяет теги заметки целиком: поле под заголовком правится так.
+func (n *Notes) SetTags(ctx context.Context, id string, tags []string) (index.Record, error) {
+	return n.service.SetTags(ctx, id, tags)
+}
+
 // Notebooks возвращает дерево ноутбуков со счётчиками.
 func (n *Notes) Notebooks(ctx context.Context) ([]index.Notebook, error) {
 	return n.service.Notebooks(ctx)

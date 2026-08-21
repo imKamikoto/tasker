@@ -5,7 +5,7 @@ export type Filter =
   | { kind: "active" }
   | { kind: "all" }
   | { kind: "notebook"; path: string }
-  | { kind: "tag"; name: string }
+  | { kind: "tags"; names: string[] }
   | { kind: "trash" };
 
 type Props = {
@@ -93,8 +93,18 @@ export function Sidebar({
         <button
           key={tag.Name}
           className="row"
-          aria-selected={filter.kind === "tag" && filter.name === tag.Name}
-          onClick={() => onFilter({ kind: "tag", name: tag.Name })}
+          aria-selected={filter.kind === "tags" && filter.names.includes(tag.Name)}
+          // Cmd добавляет тег к отбору: несколько тегов соединяются через И
+          // (SPEC §8.2). Обычный щелчок начинает отбор заново.
+          onClick={(event) => {
+            const current = filter.kind === "tags" ? filter.names : [];
+            const names = event.metaKey
+              ? current.includes(tag.Name)
+                ? current.filter((name) => name !== tag.Name)
+                : [...current, tag.Name]
+              : [tag.Name];
+            onFilter(names.length > 0 ? { kind: "tags", names } : { kind: "all" });
+          }}
         >
           <span className="row__label tag">#{tag.Name}</span>
           <span className="row__count">{tag.Count || ""}</span>

@@ -377,6 +377,52 @@ func (s *Service) Duplicate(ctx context.Context, id string) (index.Record, error
 	})
 }
 
+// SetTags заменяет набор тегов заметки целиком.
+//
+// Не через AddTags и RemoveTags: поле под заголовком правится как одно целое,
+// и вычислять разницу на стороне интерфейса значит поручать ему логику.
+func (s *Service) SetTags(ctx context.Context, id string, tags []string) (index.Record, error) {
+	release, err := s.lock.acquire(ctx)
+	if err != nil {
+		return index.Record{}, err
+	}
+	defer release()
+
+	rec, err := s.index.Get(ctx, id)
+	if err != nil {
+		return index.Record{}, err
+	}
+	n, err := s.loadByPath(rec.Path)
+	if err != nil {
+		return index.Record{}, err
+	}
+
+	clean := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag != "" && !slices.ContainsFunc(clean, func(other string) bool {
+			return strings.EqualFold(other, tag)
+		}) {
+			clean = append(clean, tag)
+		}
+	}
+	if err := n.Doc.Meta.SetTags(clean); err != nil {
+		return index.Record{}, err
+	}
+	if err := s.vault.Save(n); err != nil {
+		return index.Record{}, err
+	}
+
+	updated, err := s.reindex(ctx, n)
+	if err != nil {
+		return index.Record{}, err
+	}
+	if err := s.commit(ctx, "tags", updated.Title); err != nil {
+		return index.Record{}, err
+	}
+	return updated, nil
+}
+
 // SetPinned закрепляет заметку или снимает закрепление.
 func (s *Service) SetPinned(ctx context.Context, id string, pinned bool) (index.Record, error) {
 	return s.Update(ctx, UpdateParams{ID: id, Pinned: &pinned})
@@ -541,6 +587,59 @@ func (s *Service) SetStatusMany(ctx context.Context, ids []string, status vault.
 func (s *Service) SetPinnedMany(ctx context.Context, ids []string, pinned bool) ([]index.Record, error) {
 	return s.applyMany(ctx, ids, "pin", func(n *vault.Note) error {
 		if err := n.Doc.Meta.SetPinned(pinned); err != nil {
+			return err
+		}
+		return s.vault.Save(n)
+	})
+}
+
+// ErrEmptyTag — пустое имя тега.
+var ErrEmptyTag = errors.New("empty tag")
+
+// RenameTag переименовывает тег во всех заметках.
+//
+// Одной операцией и одним коммитом — это критерий приёмки из SPEC §8.2.
+// Заметки находятся запросом к индексу, а не обходом всех файлов: тег с двумя
+// заметками не должен стоить перечитывания vault целиком.
+func (s *Service) RenameTag(ctx context.Context, from, to string) ([]index.Record, error) {
+	from, to = strings.TrimSpace(from), strings.TrimSpace(to)
+	if from == "" || to == "" {
+		return nil, fmt.Errorf("rename tag %q: %w", from, ErrEmptyTag)
+	}
+	if from == to {
+		return nil, nil
+	}
+
+	found, err := s.Search(ctx, "tag:"+quoteTerm(from), SearchOptions{})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(found))
+	for _, note := range found {
+		ids = append(ids, note.ID)
+	}
+
+	return s.applyMany(ctx, ids, "rename tag", func(n *vault.Note) error {
+		tags, err := n.Doc.Meta.Tags()
+		if err != nil {
+			return err
+		}
+		next := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			// EqualFold, а не точное сравнение: поиск по тегу в SQLite
+			// регистронезависим для латиницы, значит сюда доедет и заметка
+			// с тегом BUG при переименовании bug.
+			replacement := tag
+			if strings.EqualFold(tag, from) {
+				replacement = to
+			}
+			// Заметка могла нести и старый, и новый тег: после переименования
+			// он должен остаться один, а не задвоиться.
+			if !slices.Contains(next, replacement) {
+				next = append(next, replacement)
+			}
+		}
+		if err := n.Doc.Meta.SetTags(next); err != nil {
 			return err
 		}
 		return s.vault.Save(n)
