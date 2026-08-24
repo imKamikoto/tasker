@@ -112,6 +112,7 @@ body {
   --wails-draggable: drag;
 }
 
+
 /* Полоса сайдбара — единственная с содержимым: слева системный светофор,
    справа шестерёнка. Отступ слева оставлен под светофор, его рисует система. */
 .drag-strip--sidebar {
@@ -512,7 +513,20 @@ button.row__label {
   color: var(--color-fg-dim);
 }
 
+/* Имя выборки не жмёт счётчик и сортировку: длинный путь ноутбука
+   обрезается многоточием, а не растягивает строку и не переносит её —
+   на высоте этой строки стоит арифметика виртуализации списка. */
+.listbar__scope {
+  overflow: hidden;
+  flex-shrink: 1;
+  min-width: 0;
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .listbar__count {
+  flex-shrink: 0;
   color: var(--color-accent);
 }
 

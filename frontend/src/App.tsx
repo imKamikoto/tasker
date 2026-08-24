@@ -23,6 +23,7 @@ import { Sidebar, type Filter } from "./components/Sidebar";
 import { Splitter } from "./components/Splitter";
 import { focusCommands, movePane, stealsFromEditor, type Pane } from "./focus";
 import { combination, resolveCommand, withoutVimMotions, type Keymap } from "./keys";
+import { scopeLabel } from "./scope";
 import { applyClick } from "./selection";
 import { defaultSettings, nextZoom } from "./settings";
 import { statusForCommand, type Status } from "./statuses";
@@ -689,6 +690,7 @@ export default function App() {
         onSort={(sortField, sortReversed) =>
           setSettings((current) => ({ ...current, sortField, sortReversed }))
         }
+        scope={scopeLabel(filter)}
         onCreate={createNote}
         agentBadge={settings.agentBadge}
         rowHeight={rowHeight}

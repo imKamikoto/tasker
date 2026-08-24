@@ -31,6 +31,8 @@ type Props = {
   sortReversed: boolean;
   onSort: (field: SortField, reversed: boolean) => void;
   onCreate: () => void;
+  /** Как называется текущая выборка: ноутбук, тег, «Активные». */
+  scope: string;
   /** Что показать вместо строк, когда их нет: пустой vault или пустая выдача. */
   empty: React.ReactNode;
   /** Прижатое к низу колонки: панель массовых операций, когда она нужна. */
@@ -79,6 +81,7 @@ export function NoteList({
   sortReversed,
   onSort,
   onCreate,
+  scope,
   empty,
   footer,
   agentBadge,
@@ -179,6 +182,11 @@ export function NoteList({
         </div>
 
         <div className="listbar__meta">
+          {/* Что именно показано. Со свёрнутым сайдбаром это единственное
+              место, где видно, чей это список. */}
+          <span className="listbar__scope" title={scope}>
+            {scope}
+          </span>
           <span className="listbar__count">{noteCount(notes.length)}</span>
           <span className="listbar__rule" />
           {/* Одна кнопка вместо трёх: сортировку меняют редко, а место в этой
