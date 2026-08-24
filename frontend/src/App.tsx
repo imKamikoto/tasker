@@ -373,6 +373,8 @@ export default function App() {
               // типа, и спред молча подменил бы одно другим.
               ...item,
               Title: saved.Title,
+              // Путь меняется вместе с заголовком: имя файла следует за ним.
+              Path: saved.Path,
               Excerpt: saved.Excerpt,
               Updated: saved.Updated,
               Status: saved.Status,
@@ -383,6 +385,13 @@ export default function App() {
             }
           : item,
       ),
+    );
+    // Открытая заметка тоже: её путь показан под текстом, и после
+    // переименования он врал бы до следующего перечитывания.
+    setNote((current) =>
+      current && current.ID === saved.ID
+        ? { ...current, Path: saved.Path, Title: saved.Title }
+        : current,
     );
   }, []);
 

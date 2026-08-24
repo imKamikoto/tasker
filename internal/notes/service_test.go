@@ -1423,3 +1423,72 @@ func TestDeleteTagReachesTrash(t *testing.T) {
 		t.Errorf("восстановленная заметка принесла тег обратно: %v", got.Tags)
 	}
 }
+
+// Сквозной сценарий: сменил заголовок — переехал файл, и заметка осталась
+// собой. Проверяется через сервис, а не через vault: индекс обязан пережить
+// переезд, иначе заметка потеряется при первом же переименовании.
+func TestUpdateRenamesFileAfterTitle(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	created, err := s.Create(ctx, CreateParams{Title: "Старый заголовок"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := created.Path
+
+	title := "Планы на осень"
+	updated, err := s.Update(ctx, UpdateParams{ID: created.ID, Title: &title})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	if filepath.Base(updated.Path) != "plany-na-osen.md" {
+		t.Errorf("путь %q, ожидалось plany-na-osen.md", updated.Path)
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(before))); !os.IsNotExist(err) {
+		t.Errorf("старый файл остался: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(updated.Path))); err != nil {
+		t.Errorf("нового файла нет: %v", err)
+	}
+
+	// Заметка по-прежнему находится по своему id — переезд не удаление.
+	got, err := s.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("Get после переименования: %v", err)
+	}
+	if got.Path != updated.Path || got.Title != title {
+		t.Errorf("после переименования: %+v", got)
+	}
+
+	// И поиск отдаёт ровно одну заметку, а не две — старую и новую.
+	found, err := s.Search(ctx, "book:/", SearchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 {
+		t.Errorf("в корне %d заметок: %v", len(found), found)
+	}
+}
+
+// Перенос в другой ноутбук вместе со сменой заголовка: переименование обязано
+// случиться уже на новом месте.
+func TestUpdateRenamesInsideNewNotebook(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	created, err := s.Create(ctx, CreateParams{Title: "Старый"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	title, notebook := "Планы", "Работа"
+	updated, err := s.Update(ctx, UpdateParams{ID: created.ID, Title: &title, Notebook: &notebook})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if updated.Path != "Работа/plany.md" {
+		t.Errorf("путь %q, ожидался Работа/plany.md", updated.Path)
+	}
+}

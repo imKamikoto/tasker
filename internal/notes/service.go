@@ -450,6 +450,15 @@ func (s *Service) Update(ctx context.Context, p UpdateParams) (index.Record, err
 			return index.Record{}, err
 		}
 	}
+	// Имя файла следует за заголовком. После переезда, а не до: переименование
+	// работает в текущем каталоге заметки, и порядок «сначала куда, потом как»
+	// — единственный, при котором она не окажется переименованной в старом
+	// ноутбуке.
+	if p.Title != nil {
+		if err := s.vault.Rename(n); err != nil {
+			return index.Record{}, err
+		}
+	}
 
 	updated, err := s.reindex(ctx, n)
 	if err != nil {
