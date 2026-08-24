@@ -83,3 +83,13 @@ test("режим в любом регистре понимается одина�
   assert.equal(stealsFromEditor("ctrl+h", "insert"), false);
   assert.equal(stealsFromEditor("ctrl+h", "normal"), true);
 });
+
+// Выключенный вим приходит сюда пустым режимом: режимов у редактора больше
+// нет, и текст набирают всегда.
+test("без вима Ctrl-сочетания остаются редактору", () => {
+  assert.equal(stealsFromEditor("ctrl+h", ""), false);
+  assert.equal(stealsFromEditor("ctrl+w", ""), false);
+  // Смена фокуса не на территории редактора и работает по-прежнему.
+  assert.equal(stealsFromEditor("ctrl+shift+h", ""), true);
+  assert.equal(stealsFromEditor("cmd+n", ""), true);
+});

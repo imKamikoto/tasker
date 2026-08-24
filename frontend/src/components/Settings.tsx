@@ -137,6 +137,7 @@ export function Settings({
             {section === "shortcuts" && (
               <Shortcuts
                 keymap={keymap}
+                vimNavigation={settings.vimNavigation}
                 onSave={onKeymap}
                 onReset={onResetKeymap}
                 path={paths?.Keymap ?? ""}

@@ -31,6 +31,7 @@ type Props = {
   onKeepMine: () => void;
   /** Сколько ждать после последней правки перед записью, мс. */
   saveDelay: number;
+  vimEnabled: boolean;
   lineNumbers: boolean;
   lineWrap: boolean;
   /** Колонка принимает клавиши: показываем полосу, как у соседей. */
@@ -62,6 +63,7 @@ export function Editor({
   onReload,
   onKeepMine,
   saveDelay,
+  vimEnabled,
   lineNumbers,
   lineWrap,
   focused,
@@ -71,7 +73,14 @@ export function Editor({
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [statusMenu, setStatusMenu] = useState(false);
-  const [status, setStatus] = useState<EditorStatus>({ mode: "NORMAL", line: 1, column: 1 });
+  // Пустой режим при выключенном виме: режимов нет, и врать «NORMAL» до
+  // первого нажатия нельзя — в строке статуса это единственное место, где
+  // видно, включён вим или нет.
+  const [status, setStatus] = useState<EditorStatus>({
+    mode: vimEnabled ? "NORMAL" : "",
+    line: 1,
+    column: 1,
+  });
 
   // Текущее содержимое держим в ref, а не в state: перерисовывать панель на
   // каждое нажатие незачем, а сохранению нужны свежие значения — в том числе
@@ -239,13 +248,14 @@ export function Editor({
             setStatus(next);
             onMode(next.mode);
           }}
+          vimEnabled={vimEnabled}
           lineNumbers={lineNumbers}
           lineWrap={lineWrap}
         />
       </div>
 
       <div className="editor__status">
-        <span className="editor__mode">{status.mode}</span>
+        {status.mode !== "" && <span className="editor__mode">{status.mode}</span>}
         <span>{note.Path}</span>
         <span className="editor__status-right">
           <span>markdown</span>

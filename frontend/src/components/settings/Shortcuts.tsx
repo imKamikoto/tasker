@@ -15,6 +15,8 @@ import { Card } from "./controls";
 
 type Props = {
   keymap: Keymap;
+  /** Действуют ли движения вима. Выключенные надо показать выключенными. */
+  vimNavigation: boolean;
   /** Сохранить раскладку целиком и перечитать её. */
   onSave: (keymap: Keymap) => void;
   onReset: () => void;
@@ -32,7 +34,7 @@ type Recording = {
   replacing: string;
 };
 
-export function Shortcuts({ keymap, onSave, onReset, path, onReveal }: Props) {
+export function Shortcuts({ keymap, vimNavigation, onSave, onReset, path, onReveal }: Props) {
   const [recording, setRecording] = useState<Recording | null>(null);
   const [conflict, setConflict] = useState<Conflict>({ kind: "none" });
 
@@ -110,6 +112,14 @@ export function Shortcuts({ keymap, onSave, onReset, path, onReveal }: Props) {
             понятно
           </button>
         </div>
+      )}
+
+      {!vimNavigation && (
+        <p className="section-note">
+          Движения вима (<code>j</code>, <code>k</code>, <code>h</code>, <code>l</code>) сейчас
+          выключены в разделе «Редактор» — привязки ниже остаются в файле, но не срабатывают.
+          Стрелки и <code>⏎</code> работают.
+        </p>
       )}
 
       {contexts.map((context) => (

@@ -65,19 +65,30 @@ export function EditorPrefs({ settings, onChange }: Props) {
         </Row>
       </Card>
 
-      <div className="card card--flat">
-        <div className="card__row">
-          <div className="card__label">
-            <span className="card__name">Vim</span>
-          </div>
-          <div className="card__control">
+      <Card>
+        <Row label="Vim" hint="Включён по умолчанию — это одна из трёх причин, по которым приложение существует">
+          <div className="stack">
+            <Toggle
+              checked={settings.vim}
+              label="Вим-режим в редакторе"
+              onChange={(vim) => onChange({ vim })}
+            />
+            <Toggle
+              checked={settings.vimNavigation}
+              label="Движения j, k, h, l в списке и сайдбаре"
+              onChange={(vimNavigation) => onChange({ vimNavigation })}
+            />
             <span className="card__note">
-              Выключателя нет и не будет: вим-режим — не опциональная фича, а одна из трёх причин,
-              по которым это приложение существует. Клавиши правятся в разделе «Шоткаты»,
-              ex-команды <code>:w</code> и <code>:q</code> привязаны к сохранению и закрытию.
+              Выключенный вим делает редактор обычным текстовым полем: текст печатается сразу,
+              режимов и ex-команд <code>:w</code> и <code>:q</code> нет. Движения снимаются
+              отдельно — стрелки, <code>⏎</code> и остальные команды работают в любом случае.
+              Клавиши правятся в разделе «Шоткаты».
             </span>
           </div>
-        </div>
+        </Row>
+      </Card>
+
+      <div className="card card--flat">
         <div className="card__row">
           <div className="card__label">
             <span className="card__name">Системный ввод</span>

@@ -96,3 +96,42 @@ export function resolveCommand(
   }
   return undefined;
 }
+
+/**
+ * Движения вима в интерфейсе: буква вместо стрелки.
+ *
+ * Списком, а не правилом «любая одинокая буква»: p и m в списке — мнемоники
+ * («pin», «move»), а не движения, и человек, отказавшийся от вима, не
+ * отказывался от них. Стрелки и Enter дублируют всё, что здесь перечислено,
+ * поэтому снятие этих привязок ничего не делает недоступным.
+ */
+export const vimMotionKeys: Record<string, string[]> = {
+  "note-list": ["j", "k"],
+  sidebar: ["j", "k", "h", "l"],
+};
+
+/**
+ * withoutVimMotions убирает из раскладки буквенные движения вима.
+ *
+ * Снимает с копии, а не с самой раскладки: исходную показывает экран шоткатов,
+ * и он обязан показывать то, что лежит в keymap.json, — иначе выключенная
+ * настройка выглядела бы как потерянные привязки.
+ *
+ * Снимаются позиции, а не команды: если человек переназначил list.down на
+ * стрелку, стрелка остаётся, и наоборот — переназначенное на j остаётся снятым,
+ * потому что жалоба была на букву, а не на команду.
+ */
+export function withoutVimMotions(keymap: Keymap): Keymap {
+  const out: Keymap = {};
+  for (const [context, bindings] of Object.entries(keymap)) {
+    const motions = vimMotionKeys[context];
+    if (!motions) {
+      out[context] = bindings;
+      continue;
+    }
+    out[context] = Object.fromEntries(
+      Object.entries(bindings).filter(([combo]) => !motions.includes(combo)),
+    );
+  }
+  return out;
+}

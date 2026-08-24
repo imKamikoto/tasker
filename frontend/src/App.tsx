@@ -22,7 +22,7 @@ import { Settings } from "./components/Settings";
 import { Sidebar, type Filter } from "./components/Sidebar";
 import { Splitter } from "./components/Splitter";
 import { focusCommands, movePane, stealsFromEditor, type Pane } from "./focus";
-import { combination, resolveCommand, type Keymap } from "./keys";
+import { combination, resolveCommand, withoutVimMotions, type Keymap } from "./keys";
 import { applyClick } from "./selection";
 import { defaultSettings, nextZoom } from "./settings";
 import { statusForCommand, type Status } from "./statuses";
@@ -103,6 +103,8 @@ export default function App() {
   // каретка в тексте, и сайдбар с клавиатуры был недоступен вовсе.
   const [pane, setPane] = useState<Pane>("list");
   // Режим вима из редактора: в режиме вставки Ctrl+K принадлежит тексту.
+  // Режим редактора для stealsFromEditor. Пустая строка означает выключенный
+  // вим: режимов нет, и в тексте всегда набирают.
   const vimMode = useRef("NORMAL");
   // Команда, отданная сайдбару. Токен растёт на каждое нажатие: две «вниз»
   // подряд должны сработать дважды, а одинаковое имя эффект бы не перезапустило.
@@ -112,6 +114,15 @@ export default function App() {
   // до неё ни одна команда не сработает, и это правильнее, чем срабатывание по
   // зашитым умолчаниям, которые человек мог переназначить.
   const [keymap, setKeymap] = useState<Keymap>({});
+
+  // Раскладка, по которой действительно разбираются нажатия. От исходной
+  // отличается только снятыми движениями вима, и разводить их обязательно:
+  // экран шоткатов показывает keymap как есть — то, что лежит в файле, — а
+  // выключенная настройка не должна выглядеть там как пропавшие привязки.
+  const activeKeymap = useMemo(
+    () => (settings.vimNavigation ? keymap : withoutVimMotions(keymap)),
+    [keymap, settings.vimNavigation],
+  );
 
   // Открыт ли выбор ноутбука для переноса (клавиша m).
   const [moving, setMoving] = useState(false);
@@ -369,7 +380,7 @@ export default function App() {
 
       // От частного к общему: сначала контекст колонки, потом глобальный.
       const contexts = typing ? ["editor", "global"] : [pane === "sidebar" ? "sidebar" : "note-list", "global"];
-      const command = resolveCommand(keymap, contexts, event);
+      const command = resolveCommand(activeKeymap, contexts, event);
       if (!command) return;
 
       if (command.startsWith("sidebar.")) {
@@ -447,14 +458,14 @@ export default function App() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [keymap, notes, selected, single, act, createNote, togglePinned, pane]);
+  }, [activeKeymap, notes, selected, single, act, createNote, togglePinned, pane]);
 
   // Смена фокуса ловится в фазе погружения: иначе сочетание сначала достанется
   // CodeMirror, и выйти из текста клавиатурой будет нельзя. Ctrl+K там —
   // «удалить до конца строки», поэтому в режиме вставки не перехватываем.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const command = resolveCommand(keymap, ["global"], event);
+      const command = resolveCommand(activeKeymap, ["global"], event);
       const direction = command ? focusCommands[command] : undefined;
       if (direction === undefined) return;
       if (pane === "editor" && !stealsFromEditor(combination(event), vimMode.current)) return;
@@ -472,7 +483,7 @@ export default function App() {
 
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [keymap, pane, settings.sidebarHidden]);
+  }, [activeKeymap, pane, settings.sidebarHidden]);
 
   // Фокус на редакторе — значит каретка в тексте. Токен растёт, потому что
   // вернуться в текст можно много раз подряд.
@@ -745,7 +756,9 @@ export default function App() {
           <div className="empty">
             <div className="empty__text">Выберите заметку слева</div>
             <div className="empty__keys">
-              <span className="key">j / k</span>
+              {/* Подсказка обязана совпадать с тем, что действительно работает:
+                  со снятыми движениями вима j и k не двигают ничего. */}
+              <span className="key">{settings.vimNavigation ? "j / k" : "↑ / ↓"}</span>
               <span className="key">⏎</span>
               <span className="key">⌘N</span>
             </div>
@@ -793,7 +806,7 @@ export default function App() {
           // Настройки редактора входят в ключ: расширения CodeMirror
           // задаются при создании, и подменять их на лету значит собирать
           // компартменты ради галочки, которую трогают раз в год.
-          key={`${note.ID}:${revision}:${settings.lineNumbers}:${settings.lineWrap}`}
+          key={`${note.ID}:${revision}:${settings.vim}:${settings.lineNumbers}:${settings.lineWrap}`}
           note={note}
           onSaved={onSaved}
           onDirty={(value) => (dirty.current = value)}
@@ -807,6 +820,7 @@ export default function App() {
           onStatus={(status) => act(api.setStatus(note.ID, status), true)}
           onMode={(mode) => (vimMode.current = mode)}
           saveDelay={settings.saveDelay}
+          vimEnabled={settings.vim}
           lineNumbers={settings.lineNumbers}
           lineWrap={settings.lineWrap}
           focused={pane === "editor"}

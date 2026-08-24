@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { combination, resolveCommand, type KeyEventLike } from "./keys.ts";
+import {
+  combination,
+  resolveCommand,
+  withoutVimMotions,
+  type KeyEventLike,
+} from "./keys.ts";
 
 const press = (key: string, mods: Partial<KeyEventLike> = {}): KeyEventLike => ({
   key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods,
@@ -153,4 +158,66 @@ test("shift и кириллица вместе", () => {
     combination(press("Р", { ctrlKey: true, shiftKey: true })),
     combination(press("H", { ctrlKey: true, shiftKey: true })),
   );
+});
+
+// Выключенная вим-навигация снимает буквы, но не стрелки и не мнемоники.
+test("вимовые движения снимаются, остальное остаётся", () => {
+  const keymap = {
+    global: { "cmd+n": "note.create" },
+    sidebar: {
+      j: "sidebar.down",
+      k: "sidebar.up",
+      h: "sidebar.collapse",
+      l: "sidebar.expand",
+      down: "sidebar.down",
+      up: "sidebar.up",
+      left: "sidebar.collapse",
+      right: "sidebar.expand",
+      enter: "sidebar.open",
+    },
+    "note-list": {
+      j: "list.down",
+      k: "list.up",
+      down: "list.down",
+      up: "list.up",
+      enter: "list.open",
+      p: "note.pin",
+      m: "note.move",
+      "cmd+d": "note.duplicate",
+    },
+  };
+
+  const got = withoutVimMotions(keymap);
+
+  assert.deepEqual(got["note-list"], {
+    down: "list.down",
+    up: "list.up",
+    enter: "list.open",
+    p: "note.pin",
+    m: "note.move",
+    "cmd+d": "note.duplicate",
+  });
+  assert.deepEqual(got.sidebar, {
+    down: "sidebar.down",
+    up: "sidebar.up",
+    left: "sidebar.collapse",
+    right: "sidebar.expand",
+    enter: "sidebar.open",
+  });
+  // Глобальный контекст движений не содержит и трогать его незачем.
+  assert.deepEqual(got.global, { "cmd+n": "note.create" });
+});
+
+// Исходную раскладку показывает экран шоткатов — портить её нельзя.
+test("снятие движений не трогает исходную раскладку", () => {
+  const keymap = { "note-list": { j: "list.down", down: "list.down" } };
+  withoutVimMotions(keymap);
+  assert.deepEqual(keymap, { "note-list": { j: "list.down", down: "list.down" } });
+});
+
+// Снимается позиция, а не команда: переназначенное на j остаётся снятым,
+// а та же команда на стрелке продолжает работать.
+test("движение снимается по клавише, а не по команде", () => {
+  const got = withoutVimMotions({ "note-list": { j: "note.pin", down: "list.down" } });
+  assert.deepEqual(got["note-list"], { down: "list.down" });
 });

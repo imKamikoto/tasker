@@ -66,5 +66,9 @@ export function stealsFromEditor(combo: string, vimMode: string): boolean {
   if (!editorTerritory(combo)) return true;
 
   const mode = vimMode.toUpperCase();
+  // Пустой режим означает выключенный вим: режимов нет вовсе, и в тексте
+  // всегда набирают. Отдать Ctrl+H интерфейсу здесь — значит сломать
+  // backspace тому самому человеку, ради которого вим и выключили.
+  if (mode === "") return false;
   return mode !== "INSERT" && mode !== "REPLACE";
 }

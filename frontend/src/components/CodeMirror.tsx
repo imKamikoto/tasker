@@ -34,6 +34,8 @@ type Props = {
   focusToken: number;
   /** Состояние для строки статуса: режим вима и позиция курсора. */
   onStatus: (status: EditorStatus) => void;
+  /** Вим-режим. Выключенный делает редактор обычным текстовым полем. */
+  vimEnabled: boolean;
   /** Показывать номера строк. */
   lineNumbers: boolean;
   /** Переносить длинные строки. */
@@ -42,7 +44,10 @@ type Props = {
 
 /** Что показывает строка статуса под текстом. */
 export type EditorStatus = {
-  /** NORMAL, INSERT, VISUAL — как их называет сам вим. */
+  /**
+   * NORMAL, INSERT, VISUAL — как их называет сам вим. Пустая строка означает,
+   * что вим выключен: режимов нет, и показывать в строке статуса нечего.
+   */
   mode: string;
   line: number;
   column: number;
@@ -62,6 +67,7 @@ export function CodeMirror({
   onQuit,
   focusToken,
   onStatus,
+  vimEnabled,
   lineNumbers: showLineNumbers,
   lineWrap,
 }: Props) {
@@ -69,7 +75,7 @@ export function CodeMirror({
   const view = useRef<EditorView | null>(null);
   // Режим держим здесь, а не в state: он меняется на каждое нажатие, и
   // перерисовывать из-за него редактор нельзя.
-  const mode = useRef("NORMAL");
+  const mode = useRef(vimEnabled ? "NORMAL" : "");
 
   const reportPosition = (editor: EditorView) => {
     const head = editor.state.selection.main.head;
@@ -90,11 +96,13 @@ export function CodeMirror({
   useEffect(() => {
     if (!host.current) return;
 
-    // Ex-команды вима привязаны к приложению (SPEC §8.6).
-    Vim.defineEx("write", "w", () => callbacks.current.onWrite());
-    Vim.defineEx("quit", "q", () => callbacks.current.onQuit());
-    // Русские буквы работают как команды по физической позиции клавиши.
-    Vim.langmap(RU_LANGMAP, true);
+    if (vimEnabled) {
+      // Ex-команды вима привязаны к приложению (SPEC §8.6).
+      Vim.defineEx("write", "w", () => callbacks.current.onWrite());
+      Vim.defineEx("quit", "q", () => callbacks.current.onQuit());
+      // Русские буквы работают как команды по физической позиции клавиши.
+      Vim.langmap(RU_LANGMAP, true);
+    }
 
     const editor = new EditorView({
       parent: host.current,
@@ -104,7 +112,11 @@ export function CodeMirror({
           // Вим идёт первым, иначе его кеймап перекрывается дефолтным.
           // status: false — свою панель он рисует внутри редактора, а нам
           // нужна одна строка на всю ширину колонки, с режимом и позицией.
-          vim({ status: false }),
+          //
+          // Выключённый вим не подменяется заглушкой, а просто не добавляется:
+          // тогда остаётся обычный CodeMirror с defaultKeymap, где текст
+          // печатается сразу и стрелки работают как везде.
+          ...(vimEnabled ? [vim({ status: false })] : []),
           // Расширения включаются списком, а не переключаются на лету:
           // редактор всё равно пересоздаётся, когда настройка меняется.
           ...(showLineNumbers ? [lineNumbers()] : []),
@@ -145,8 +157,9 @@ export function CodeMirror({
     });
 
     // Режим вима приходит событием: своей панели у него больше нет, а знать,
-    // в каком он режиме, — половина смысла вим-режима.
-    const cm = getCM(editor);
+    // в каком он режиме, — половина смысла вим-режима. Без вима подписываться
+    // не на что: события никто не шлёт, и режим остаётся пустым.
+    const cm = vimEnabled ? getCM(editor) : null;
     const onModeChange = (event: { mode: string; subMode?: string }) => {
       mode.current = (event.subMode || event.mode || "normal").toUpperCase();
       reportPosition(editor);

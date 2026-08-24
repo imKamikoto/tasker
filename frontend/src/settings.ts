@@ -35,6 +35,24 @@ export type UISettings = {
   /** Сколько ждать после последней правки перед записью, мс. */
   saveDelay: number;
 
+  /**
+   * Вим-режим в редакторе.
+   *
+   * Включён по умолчанию и остаётся тем, ради чего приложение написано.
+   * Выключатель существует ради второго человека: тому, кто вима не знает,
+   * редактор без него не «хуже настроенный», а просто неработающий — набор
+   * текста в нормальном режиме не печатает ничего.
+   */
+  vim: boolean;
+  /**
+   * Движения вима в списке и сайдбаре: j, k, h, l.
+   *
+   * Отдельно от редактора, потому что это разные вещи: вим в тексте можно
+   * любить, а буквы вместо стрелок в списке — нет, и наоборот. Стрелки,
+   * Enter и остальные команды работают в любом случае.
+   */
+  vimNavigation: boolean;
+
   /** Окно автокоммита в секундах. Ноль — коммитить каждое сохранение. */
   commitWindow: number;
 
@@ -131,6 +149,10 @@ export const defaultSettings: UISettings = {
   lineWrap: true,
   saveDelay: 400,
 
+  // Оба включены: вим — умолчание проекта, а не опция, которую предлагают.
+  vim: true,
+  vimNavigation: true,
+
   // Ноль — коммит на каждое сохранение, как работало всегда.
   commitWindow: 0,
 
@@ -194,6 +216,9 @@ export function parseSettings(raw: string): UISettings {
     lineNumbers: flag("lineNumbers"),
     lineWrap: flag("lineWrap"),
     saveDelay: num("saveDelay", defaultSettings.saveDelay),
+
+    vim: flag("vim"),
+    vimNavigation: flag("vimNavigation"),
 
     commitWindow: num("commitWindow", defaultSettings.commitWindow),
 
