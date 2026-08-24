@@ -325,6 +325,25 @@ export default function App() {
       .catch((err) => setListError(describeError(err)));
   }, [filter]);
 
+  // Переход по ссылке на другую заметку — из текста или из списка обратных.
+  //
+  // Если цели нет в текущем списке, отбор сбрасывается на «Все заметки». Без
+  // этого заметка открылась бы в редакторе (грузится она по id, а не из
+  // списка), но в списке слева не подсветилась бы ничем, и операции над
+  // выделением — закрепить, сменить статус — искали бы её там, где её нет.
+  const openNote = useCallback(
+    (id: string) => {
+      if (!notes.some((item) => item.ID === id)) {
+        setFilter({ kind: "all" });
+        setQuery("");
+      }
+      setSelected([id]);
+      setAnchor(id);
+      setConflict(false);
+    },
+    [notes],
+  );
+
   const onFilter = useCallback((next: Filter) => {
     setFilter(next);
     setSelected([]);
@@ -832,6 +851,7 @@ export default function App() {
           onMode={(mode) => (vimMode.current = mode)}
           saveDelay={settings.saveDelay}
           vimEnabled={settings.vim}
+          onOpenNote={openNote}
           lineNumbers={settings.lineNumbers}
           lineWrap={settings.lineWrap}
           focused={pane === "editor"}

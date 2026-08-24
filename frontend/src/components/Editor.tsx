@@ -32,6 +32,8 @@ type Props = {
   /** Сколько ждать после последней правки перед записью, мс. */
   saveDelay: number;
   vimEnabled: boolean;
+  /** Открыть другую заметку: по ссылке из текста или из списка обратных. */
+  onOpenNote: (id: string) => void;
   lineNumbers: boolean;
   lineWrap: boolean;
   /** Колонка принимает клавиши: показываем полосу, как у соседей. */
@@ -64,6 +66,7 @@ export function Editor({
   onKeepMine,
   saveDelay,
   vimEnabled,
+  onOpenNote,
   lineNumbers,
   lineWrap,
   focused,
@@ -73,6 +76,7 @@ export function Editor({
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [statusMenu, setStatusMenu] = useState(false);
+  const [backlinksOpen, setBacklinksOpen] = useState(false);
   // Пустой режим при выключенном виме: режимов нет, и врать «NORMAL» до
   // первого нажатия нельзя — в строке статуса это единственное место, где
   // видно, включён вим или нет.
@@ -214,7 +218,35 @@ export function Editor({
         {backlinks > 0 && (
           <>
             <span className="meta__sep">│</span>
-            <span>{backlinkCount(backlinks)}</span>
+            {/* Счётчик сам раскрывает список: знать, что на заметку кто-то
+                ссылается, и не иметь способа посмотреть кто — половина
+                ответа. Панелью под редактором это станет в фазе 7, пока
+                хватает всплывающего списка на том же месте. */}
+            <span className="backlinks">
+              <button
+                className="backlinks__count"
+                aria-expanded={backlinksOpen}
+                onClick={() => setBacklinksOpen((open) => !open)}
+              >
+                {backlinkCount(backlinks)}
+              </button>
+              {backlinksOpen && (
+                <div className="menu menu--backlinks" onMouseLeave={() => setBacklinksOpen(false)}>
+                  {(note.Backlinks ?? []).map((item) => (
+                    <button
+                      key={item.ID}
+                      className="menu__item"
+                      onClick={() => {
+                        setBacklinksOpen(false);
+                        onOpenNote(item.ID);
+                      }}
+                    >
+                      <span className="menu__label">{item.Title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </span>
           </>
         )}
         <span className="editor__hints">
@@ -249,6 +281,7 @@ export function Editor({
             onMode(next.mode);
           }}
           vimEnabled={vimEnabled}
+          onOpenNote={onOpenNote}
           lineNumbers={lineNumbers}
           lineWrap={lineWrap}
         />

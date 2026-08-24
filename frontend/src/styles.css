@@ -1080,6 +1080,30 @@ button.row__label {
   font: calc(12px * var(--ui-scale))/1 var(--font-ui);
 }
 
+/* Список обратных ссылок висит над метаполосой редактора, а не под ней:
+   метаполоса прижата к низу, и раскрытый вниз список ушёл бы за край окна. */
+.backlinks {
+  position: relative;
+}
+
+.backlinks__count {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.menu--backlinks {
+  bottom: 100%;
+  left: 0;
+  max-height: 240px;
+  margin-bottom: 6px;
+  overflow-y: auto;
+}
+
 .menu--right {
   top: 100%;
   right: 8px;

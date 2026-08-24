@@ -27,6 +27,7 @@ import { Vim, getCM, vim } from "@replit/codemirror-vim";
 import { checkboxHighlight } from "../checkboxes";
 import { taskerHighlight, taskerTheme } from "../editorTheme";
 import { spansLines } from "../indent";
+import { linkAt, noteLinkHighlight, visibleNoteLinks } from "../notelinks";
 import { continueList } from "../lists";
 import { RU_LANGMAP } from "../langmap";
 
@@ -42,6 +43,8 @@ type Props = {
   focusToken: number;
   /** Состояние для строки статуса: режим вима и позиция курсора. */
   onStatus: (status: EditorStatus) => void;
+  /** Открыть заметку по ссылке из текста. */
+  onOpenNote: (id: string) => void;
   /** Вим-режим. Выключенный делает редактор обычным текстовым полем. */
   vimEnabled: boolean;
   /** Показывать номера строк. */
@@ -93,6 +96,7 @@ export function CodeMirror({
   onQuit,
   focusToken,
   onStatus,
+  onOpenNote,
   vimEnabled,
   lineNumbers: showLineNumbers,
   lineWrap,
@@ -116,8 +120,8 @@ export function CodeMirror({
   // Колбэки держим в ref: они меняются на каждом рендере родителя, а редактор
   // пересоздавать из-за этого нельзя. Классическая ловушка устаревшего
   // замыкания, если сложить их прямо в расширения.
-  const callbacks = useRef({ onChange, onWrite, onQuit, onStatus });
-  callbacks.current = { onChange, onWrite, onQuit, onStatus };
+  const callbacks = useRef({ onChange, onWrite, onQuit, onStatus, onOpenNote });
+  callbacks.current = { onChange, onWrite, onQuit, onStatus, onOpenNote };
 
   useEffect(() => {
     if (!host.current) return;
@@ -178,6 +182,24 @@ export function CodeMirror({
           taskerHighlight,
           taskerTheme,
           checkboxHighlight,
+          noteLinkHighlight,
+          // Переход по ссылке. Через Cmd, а не обычным щелчком: редактор
+          // показывает исходник, и обычный щелчок обязан ставить каретку.
+          // Cmd+щелчок в CodeMirror ставит второй курсор — забираем его
+          // только над самой ссылкой, во всех прочих местах мультикурсор
+          // остаётся (SPEC §8.6).
+          EditorView.domEventHandlers({
+            mousedown(event, view) {
+              if (!event.metaKey) return false;
+              const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+              if (pos === null) return false;
+              const id = linkAt(visibleNoteLinks(view), pos);
+              if (id === "") return false;
+              event.preventDefault();
+              callbacks.current.onOpenNote(id);
+              return true;
+            },
+          }),
           ...(lineWrap ? [EditorView.lineWrapping] : []),
           // Продолжение списков идёт раньше умолчаний, иначе Enter заберёт
           // дефолтная привязка и до нас не дойдёт.
