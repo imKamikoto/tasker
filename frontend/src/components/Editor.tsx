@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeError, events, subscribe, type Note, type NoteRecord } from "../api";
 import { backlinkCount } from "../format";
 import { statusGlyphs, statuses, type Status } from "../statuses";
-import { CodeMirror, type EditorStatus } from "./CodeMirror";
+import { CodeMirror, type EditorStatus, type MarkupKind } from "./CodeMirror";
+import { MarkupToolbar } from "./MarkupToolbar";
+import type { SelectionRect } from "../toolbar";
 import { ConflictModal } from "./ConflictModal";
 import { TagField } from "./TagField";
 
@@ -77,6 +79,13 @@ export function Editor({
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [statusMenu, setStatusMenu] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(false);
+  // Плавающий тулбар: где стоит выделение и какую разметку просили применить.
+  const pane = useRef<HTMLDivElement | null>(null);
+  const [selection, setSelection] = useState<SelectionRect | null>(null);
+  const [markup, setMarkup] = useState<{ kind: MarkupKind | ""; token: number }>({
+    kind: "",
+    token: 0,
+  });
   // Пустой режим при выключенном виме: режимов нет, и врать «NORMAL» до
   // первого нажатия нельзя — в строке статуса это единственное место, где
   // видно, включён вим или нет.
@@ -167,7 +176,7 @@ export function Editor({
   const backlinks = note.Backlinks?.length ?? 0;
 
   return (
-    <div className="pane pane--editor" data-focused={focused}>
+    <div className="pane pane--editor" data-focused={focused} ref={pane}>
       <div className="drag-strip" />
 
       <input
@@ -282,8 +291,15 @@ export function Editor({
           }}
           vimEnabled={vimEnabled}
           onOpenNote={onOpenNote}
+          onSelection={setSelection}
+          markup={markup}
           lineNumbers={lineNumbers}
           lineWrap={lineWrap}
+        />
+        <MarkupToolbar
+          selection={selection}
+          container={pane.current?.getBoundingClientRect() ?? null}
+          onApply={(kind) => setMarkup((current) => ({ kind, token: current.token + 1 }))}
         />
       </div>
 

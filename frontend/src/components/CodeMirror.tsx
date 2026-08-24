@@ -27,7 +27,15 @@ import { Vim, getCM, vim } from "@replit/codemirror-vim";
 import { checkboxHighlight } from "../checkboxes";
 import { taskerHighlight, taskerTheme } from "../editorTheme";
 import { spansLines } from "../indent";
+import {
+  applyAlert,
+  toggleFence,
+  toggleInline,
+  type AlertKind,
+  type InlineKind,
+} from "../markup";
 import { linkAt, noteLinkHighlight, visibleNoteLinks } from "../notelinks";
+import type { SelectionRect } from "../toolbar";
 import { continueList } from "../lists";
 import { RU_LANGMAP } from "../langmap";
 
@@ -45,6 +53,14 @@ type Props = {
   onStatus: (status: EditorStatus) => void;
   /** Открыть заметку по ссылке из текста. */
   onOpenNote: (id: string) => void;
+  /** Где стоит непустое выделение; null — выделения нет. */
+  onSelection: (rect: SelectionRect | null) => void;
+  /**
+   * Команда разметки. Числом, а не колбэком: применить надо по нажатию, а
+   * пересоздавать редактор ради этого нельзя — тот же приём, что и у
+   * focusToken.
+   */
+  markup: { kind: MarkupKind | ""; token: number };
   /** Вим-режим. Выключенный делает редактор обычным текстовым полем. */
   vimEnabled: boolean;
   /** Показывать номера строк. */
@@ -69,6 +85,34 @@ function indentBlock(shift: boolean) {
     if (!spansLines(ranges)) return false;
     return shift ? indentLess(view) : indentMore(view);
   };
+}
+
+/** Что умеет плавающий тулбар. */
+export type MarkupKind = InlineKind | "fence" | `alert:${AlertKind}`;
+
+/**
+ * applyMarkup применяет разметку к текущему выделению.
+ *
+ * Вся логика — в чистых функциях markup.ts; здесь только перевод их ответа в
+ * транзакцию CodeMirror. Выделение выставляется явно: после замены попасть
+ * туда, где текст, а не в конец вставленного, — половина смысла тулбара.
+ */
+function applyMarkup(view: EditorView, kind: MarkupKind) {
+  const { from, to } = view.state.selection.main;
+  const doc = view.state.doc.toString();
+
+  const change = kind === "fence"
+    ? toggleFence(doc, from, to)
+    : kind.startsWith("alert:")
+      ? applyAlert(doc, from, to, kind.slice("alert:".length) as AlertKind)
+      : toggleInline(doc, from, to, kind as InlineKind);
+
+  view.dispatch({
+    changes: { from: change.from, to: change.to, insert: change.insert },
+    selection: { anchor: change.select.from, head: change.select.to },
+    scrollIntoView: true,
+  });
+  view.focus();
 }
 
 /** Что показывает строка статуса под текстом. */
@@ -97,6 +141,8 @@ export function CodeMirror({
   focusToken,
   onStatus,
   onOpenNote,
+  onSelection,
+  markup,
   vimEnabled,
   lineNumbers: showLineNumbers,
   lineWrap,
@@ -106,6 +152,24 @@ export function CodeMirror({
   // Режим держим здесь, а не в state: он меняется на каждое нажатие, и
   // перерисовывать из-за него редактор нельзя.
   const mode = useRef(vimEnabled ? "NORMAL" : "");
+
+  // Где стоит выделение на экране. Координаты берутся у начала: тулбар над
+  // многострочным выделением всё равно может стоять только в одном месте, и
+  // начало — единственное, которое человек точно видит.
+  const reportSelection = (editor: EditorView) => {
+    const { from, to, empty } = editor.state.selection.main;
+    if (empty) {
+      callbacks.current.onSelection(null);
+      return;
+    }
+    const start = editor.coordsAtPos(from);
+    const end = editor.coordsAtPos(to);
+    if (!start || !end) {
+      callbacks.current.onSelection(null);
+      return;
+    }
+    callbacks.current.onSelection({ top: start.top, bottom: start.bottom, left: start.left });
+  };
 
   const reportPosition = (editor: EditorView) => {
     const head = editor.state.selection.main.head;
@@ -120,8 +184,8 @@ export function CodeMirror({
   // Колбэки держим в ref: они меняются на каждом рендере родителя, а редактор
   // пересоздавать из-за этого нельзя. Классическая ловушка устаревшего
   // замыкания, если сложить их прямо в расширения.
-  const callbacks = useRef({ onChange, onWrite, onQuit, onStatus, onOpenNote });
-  callbacks.current = { onChange, onWrite, onQuit, onStatus, onOpenNote };
+  const callbacks = useRef({ onChange, onWrite, onQuit, onStatus, onOpenNote, onSelection });
+  callbacks.current = { onChange, onWrite, onQuit, onStatus, onOpenNote, onSelection };
 
   useEffect(() => {
     if (!host.current) return;
@@ -215,6 +279,9 @@ export function CodeMirror({
           EditorView.updateListener.of((update) => {
             if (update.docChanged) callbacks.current.onChange(update.state.doc.toString());
             if (update.docChanged || update.selectionSet) reportPosition(update.view);
+            if (update.docChanged || update.selectionSet || update.geometryChanged) {
+              reportSelection(update.view);
+            }
           }),
         ],
       }),
@@ -244,6 +311,16 @@ export function CodeMirror({
     // initialDoc читается только при создании, дальше буфер живёт сам.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Команда тулбара. Токеном, а не колбэком: нажатие может повториться с той
+  // же разметкой, и одинаковое значение эффект бы не перезапустило.
+  const lastMarkup = useRef(markup.token);
+  useEffect(() => {
+    if (markup.token === lastMarkup.current) return;
+    lastMarkup.current = markup.token;
+    if (markup.kind === "" || !view.current) return;
+    applyMarkup(view.current, markup.kind);
+  }, [markup]);
 
   // Enter в списке передаёт фокус сюда. Через число, а не через ref наружу:
   // так фокус — это событие, а не состояние, и повторный запрос сработает.

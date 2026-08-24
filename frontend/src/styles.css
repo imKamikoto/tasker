@@ -1080,6 +1080,69 @@ button.row__label {
   font: calc(12px * var(--ui-scale))/1 var(--font-ui);
 }
 
+/* Плавающий тулбар разметки. Абсолютно внутри колонки редактора, а не fixed
+   в окне: у колонки backdrop-filter, а он создаёт содержащий блок для
+   позиционированных потомков — fixed отсчитывался бы от неё же, только молча.
+   Координаты выделения CodeMirror отдаёт в системе окна, поэтому пересчёт
+   лежит в MarkupToolbar.tsx. Ширина и высота повторены там же: позиция
+   считается до отрисовки, иначе первый кадр встаёт не на место. */
+.markupbar {
+  position: absolute;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 30px;
+  padding: 0 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-popover);
+}
+
+.markupbar__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--color-fg);
+  font: calc(12px * var(--ui-scale))/1 var(--font-mono);
+}
+
+.markupbar__button:hover {
+  background: var(--color-bg-hover);
+}
+
+.markupbar__button[data-kind="bold"] {
+  font-weight: 700;
+}
+
+.markupbar__button[data-kind="italic"] {
+  font-style: italic;
+}
+
+.markupbar__button[data-kind="strike"] {
+  text-decoration: line-through;
+}
+
+.markupbar__rule {
+  width: 1px;
+  height: 14px;
+  margin: 0 3px;
+  background: var(--color-border);
+}
+
+.menu--alerts {
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+}
+
 /* Список обратных ссылок висит над метаполосой редактора, а не под ней:
    метаполоса прижата к низу, и раскрытый вниз список ушёл бы за край окна. */
 .backlinks {
