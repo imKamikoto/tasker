@@ -268,6 +268,24 @@ body {
   padding: 20px 14px 6px;
 }
 
+/* Заголовок секции — кнопка, но выглядеть должен подписью: рамка и фон
+   превратили бы две подписи сайдбара в две кнопки, которых там не было. */
+.section__toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: default;
+}
+
+.section__caret {
+  width: 9px;
+  font: calc(9px * var(--ui-scale))/1 var(--font-mono);
+  color: var(--color-fg-dim);
+}
+
 .section__label {
   font: 600 calc(10px * var(--ui-scale))/1 var(--font-mono);
   letter-spacing: 0.14em;

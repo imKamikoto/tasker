@@ -614,6 +614,15 @@ export default function App() {
         filter={filter}
         onFilter={onFilter}
         collapsed={settings.collapsed}
+        notebooksCollapsed={settings.notebooksCollapsed}
+        tagsCollapsed={settings.tagsCollapsed}
+        onToggleSection={(section) =>
+          setSettings((current) =>
+            section === "notebooks"
+              ? { ...current, notebooksCollapsed: !current.notebooksCollapsed }
+              : { ...current, tagsCollapsed: !current.tagsCollapsed },
+          )
+        }
         dragging={dragging}
         focused={pane === "sidebar"}
         command={sidebarCommand}

@@ -62,6 +62,15 @@ export type UISettings = {
   /** Сайдбар свёрнут: колонка ноутбуков и тегов не показывается. */
   sidebarHidden: boolean;
   /**
+   * Свёрнутые секции сайдбара целиком.
+   *
+   * Отдельно от collapsed: там пути свёрнутых ноутбуков, а это две секции с
+   * постоянными именами. Складывать сентинелы в список путей — верный способ
+   * однажды получить ноутбук с именем «tags».
+   */
+  notebooksCollapsed: boolean;
+  tagsCollapsed: boolean;
+  /**
    * Масштаб текста. Единица — исходный размер.
    *
    * Растёт только кегль: колонки сохраняют ширину, и на экране остаётся
@@ -159,6 +168,8 @@ export const defaultSettings: UISettings = {
   agentBadge: true,
 
   sidebarHidden: false,
+  notebooksCollapsed: false,
+  tagsCollapsed: false,
   textScale: 1,
 };
 
@@ -225,6 +236,8 @@ export function parseSettings(raw: string): UISettings {
     agentBadge: flag("agentBadge"),
 
     sidebarHidden: flag("sidebarHidden"),
+    notebooksCollapsed: flag("notebooksCollapsed"),
+    tagsCollapsed: flag("tagsCollapsed"),
     textScale: num("textScale", defaultSettings.textScale),
   };
 }

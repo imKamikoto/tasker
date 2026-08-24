@@ -22,6 +22,10 @@ type Props = {
   filter: Filter;
   onFilter: (filter: Filter) => void;
   collapsed: string[];
+  /** Секции сайдбара, свёрнутые целиком. */
+  notebooksCollapsed: boolean;
+  tagsCollapsed: boolean;
+  onToggleSection: (section: "notebooks" | "tags") => void;
   onToggle: (path: string) => void;
   /** Сколько заметок прилетит, если бросить сюда: показывается вместо счётчика. */
   dragging: number;
@@ -63,6 +67,9 @@ export function Sidebar({
   filter,
   onFilter,
   collapsed,
+  notebooksCollapsed,
+  tagsCollapsed,
+  onToggleSection,
   onToggle,
   dragging,
   focused,
@@ -102,19 +109,27 @@ export function Sidebar({
       { key: "all", filter: { kind: "all" } },
     ];
     if (counts.Agent > 0) out.push({ key: "agent", filter: { kind: "agent" } });
-    for (const row of rows) {
-      out.push({
-        key: `book:${row.path}`,
-        filter: { kind: "notebook", path: row.path },
-        path: row.path,
-        hasChildren: row.hasChildren,
-        collapsed: row.collapsed,
-      });
+    // Свёрнутая секция выпадает и отсюда: иначе курсор уезжал бы в строки,
+    // которых на экране нет, и j/k выглядели бы сломанными.
+    if (!notebooksCollapsed) {
+      for (const row of rows) {
+        out.push({
+          key: `book:${row.path}`,
+          filter: { kind: "notebook", path: row.path },
+          path: row.path,
+          hasChildren: row.hasChildren,
+          collapsed: row.collapsed,
+        });
+      }
     }
-    for (const tag of tags) out.push({ key: `tag:${tag.Name}`, filter: { kind: "tags", names: [tag.Name] } });
+    if (!tagsCollapsed) {
+      for (const tag of tags) {
+        out.push({ key: `tag:${tag.Name}`, filter: { kind: "tags", names: [tag.Name] } });
+      }
+    }
     out.push({ key: "trash", filter: { kind: "trash" } });
     return out;
-  }, [counts.Agent, rows, tags]);
+  }, [counts.Agent, rows, tags, notebooksCollapsed, tagsCollapsed]);
 
   const [cursor, setCursor] = useState(0);
   // Список мог укоротиться под курсором: ноутбук свернули или удалили тег.
@@ -216,19 +231,34 @@ export function Sidebar({
 
       <div className="sidebar__scroll">
         <div className="section">
-          <span className="section__label">Ноутбуки</span>
+          {/* Заголовок сам сворачивает секцию: отдельный треугольник рядом
+              означал бы два места для одного действия. */}
+          <button
+            className="section__toggle"
+            aria-expanded={!notebooksCollapsed}
+            title={notebooksCollapsed ? "Развернуть ноутбуки" : "Свернуть ноутбуки"}
+            onClick={() => onToggleSection("notebooks")}
+          >
+            <span className="section__caret">{notebooksCollapsed ? "▸" : "▾"}</span>
+            <span className="section__label">Ноутбуки</span>
+          </button>
           <span className="section__rule" />
           <button
             className="section__add"
             aria-label="новый ноутбук"
             title="Новый ноутбук"
-            onClick={() => setAdding("")}
+            onClick={() => {
+              // Заводить ноутбук в свёрнутой секции незачем: поле ввода и
+              // новая строка появятся там, где их не видно.
+              if (notebooksCollapsed) onToggleSection("notebooks");
+              setAdding("");
+            }}
           >
             +
           </button>
         </div>
 
-        {adding === "" && (
+        {!notebooksCollapsed && adding === "" && (
           <NameInput
             initial=""
             placeholder="Имя ноутбука"
@@ -241,7 +271,7 @@ export function Sidebar({
           />
         )}
 
-        <div className="sidebar__group">
+        <div className="sidebar__group" hidden={notebooksCollapsed}>
           {rows.map((row) => (
             <div
               key={row.path}
@@ -358,7 +388,7 @@ export function Sidebar({
           ))}
         </div>
 
-        {adding !== null && adding !== "" && (
+        {!notebooksCollapsed && adding !== null && adding !== "" && (
           <NameInput
             initial=""
             placeholder={`Внутри «${adding}»`}
@@ -373,12 +403,20 @@ export function Sidebar({
 
         {tags.length > 0 && (
           <div className="section">
-            <span className="section__label">Теги</span>
+            <button
+              className="section__toggle"
+              aria-expanded={!tagsCollapsed}
+              title={tagsCollapsed ? "Развернуть теги" : "Свернуть теги"}
+              onClick={() => onToggleSection("tags")}
+            >
+              <span className="section__caret">{tagsCollapsed ? "▸" : "▾"}</span>
+              <span className="section__label">Теги</span>
+            </button>
             <span className="section__rule" />
           </div>
         )}
 
-        <div className="sidebar__group">
+        <div className="sidebar__group" hidden={tagsCollapsed}>
           {tags.map((tag) =>
             renamingTag === tag.Name ? (
               <NameInput
