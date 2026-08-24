@@ -9,6 +9,7 @@ import { Appearance } from "./settings/Appearance";
 import { EditorPrefs } from "./settings/EditorPrefs";
 import { Shortcuts } from "./settings/Shortcuts";
 import { Storage } from "./settings/Storage";
+import { searchSettings } from "../settingsindex";
 
 /** Разделы в порядке макета T6. */
 const sections = [
@@ -47,6 +48,7 @@ export function Settings({
   onClose,
 }: Props) {
   const [section, setSection] = useState<Section>("appearance");
+  const [find, setFind] = useState("");
   const [stats, setStats] = useState<Stats | null>(null);
   const [paths, setPaths] = useState<Paths | null>(null);
   const [build, setBuild] = useState<Build | null>(null);
@@ -57,6 +59,10 @@ export function Settings({
   // интерфейса, и живёт оно в Go рядом с заметками.
   const [gitEnabled, setGitEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Найденное. null означает «не искали» — тогда показывается обычный список
+  // разделов, а не пустая выдача.
+  const found = find.trim() === "" ? null : searchSettings(find);
 
   // Всё сразу при открытии: экран небольшой, а подгружать разделы по одному
   // значит показывать «…» на каждом переключении.
@@ -99,14 +105,54 @@ export function Settings({
       <div className="prefs" onMouseDown={(event) => event.stopPropagation()}>
         <nav className="prefs__nav">
           <div className="prefs__navhead">Настройки</div>
-          {sections.map((item) => (
+          {/* Поиск подменяет список разделов, а не соседствует с ним: шесть
+              разделов и шесть найденных пунктов рядом читались бы как один
+              длинный список без понятного деления. */}
+          <input
+            className="prefs__find"
+            placeholder="Найти настройку"
+            value={find}
+            spellCheck={false}
+            autoCorrect="off"
+            onChange={(event) => setFind(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && find !== "") {
+                // Escape сначала очищает поиск и только потом закрывает окно:
+                // иначе набранное нечем убрать, не закрыв настройки.
+                event.stopPropagation();
+                setFind("");
+              }
+            }}
+          />
+          {found === null &&
+            sections.map((item) => (
+              <button
+                key={item.id}
+                className="prefs__navitem"
+                aria-selected={section === item.id}
+                onClick={() => setSection(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          {found !== null && found.length === 0 && (
+            <div className="empty empty--inline">Ничего не нашлось</div>
+          )}
+          {found?.map((item, i) => (
             <button
-              key={item.id}
-              className="prefs__navitem"
-              aria-selected={section === item.id}
-              onClick={() => setSection(item.id)}
+              key={`${item.section}:${i}`}
+              className="prefs__navitem prefs__navitem--found"
+              onClick={() => {
+                setSection(item.section as Section);
+                setFind("");
+              }}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {/* Раздел подписью: найденное надо уметь найти второй раз
+                  руками, а для этого — знать, где оно лежит. */}
+              <span className="prefs__navwhere">
+                {sections.find((s) => s.id === item.section)?.label}
+              </span>
             </button>
           ))}
         </nav>

@@ -1795,6 +1795,37 @@ button.row__label {
   background: var(--color-bg-hover);
 }
 
+/* Найденный пункт выше обычного: под подписью идёт имя раздела, чтобы
+   настройку можно было найти второй раз руками, уже без поиска. */
+.prefs__navitem--found {
+  height: auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 9px;
+}
+
+.prefs__navwhere {
+  color: var(--color-fg-dim);
+  font: calc(10px * var(--ui-scale))/1 var(--font-mono);
+}
+
+.prefs__find {
+  height: 26px;
+  margin: 0 0 6px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font: calc(12px * var(--ui-scale))/1 var(--font-ui);
+}
+
+.prefs__find:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
 .prefs__navitem[aria-selected="true"] {
   background: var(--color-bg-selected);
   color: var(--color-fg-heading);
