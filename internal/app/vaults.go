@@ -51,11 +51,20 @@ type Vaults struct {
 	// создании и больше не меняется — приложение, у которого диалог
 	// спрашивают, к моменту вызова уже есть, потому что вызывают из вебвью.
 	pick func() (string, error)
-	mu   sync.Mutex
+	// launch поднимает новый экземпляр приложения, shutdown гасит текущий.
+	// Полями по той же причине, что и pick: в тестах здесь функции, которые
+	// не трогают ни процессы, ни окно. shutdown приходит снаружи — гасить надо
+	// через хук закрытия окна, а он живёт в cmd/tasker вместе с Wails.
+	launch   func() error
+	shutdown func()
+	mu       sync.Mutex
 }
 
 // NewVaults создаёт сервис. Пустой home означает домашнюю папку пользователя.
-func NewVaults(home string, pick func() (string, error)) (*Vaults, error) {
+//
+// shutdown должен гасить приложение тем же путём, что и закрытие окна: иначе
+// перезапуск станет способом потерять несохранённый буфер.
+func NewVaults(home string, pick func() (string, error), shutdown func()) (*Vaults, error) {
 	if home == "" {
 		resolved, err := os.UserHomeDir()
 		if err != nil {
@@ -67,7 +76,9 @@ func NewVaults(home string, pick func() (string, error)) (*Vaults, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("vaults: %w", err)
 	}
-	return &Vaults{path: filepath.Join(dir, vaultsFile), pick: pick}, nil
+	v := &Vaults{path: filepath.Join(dir, vaultsFile), pick: pick, shutdown: shutdown}
+	v.launch = v.launchInstance
+	return v, nil
 }
 
 // Path возвращает путь к vaults.json — интерфейсу есть что показать.
@@ -181,8 +192,22 @@ func (v *Vaults) Reveal(path string) error {
 //
 // Запускается новый экземпляр, и только потом гасится текущий: если запуск не
 // удался, человек останется в работающем приложении, а не перед пустым
-// экраном.
+// экраном. Гашение обязательно, и обязательно через shutdown: без него на
+// экране оказывались два приложения разом — новое с новой папкой и старое со
+// старой, — а прямой выход мимо хука закрытия потерял бы буфер редактора.
 func (v *Vaults) Restart() error {
+	if err := v.launch(); err != nil {
+		return err
+	}
+	if v.shutdown == nil {
+		return errors.New("restart: no shutdown")
+	}
+	v.shutdown()
+	return nil
+}
+
+// launchInstance поднимает второй экземпляр приложения.
+func (v *Vaults) launchInstance() error {
 	binary, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("restart: %w", err)
@@ -191,11 +216,17 @@ func (v *Vaults) Restart() error {
 	// Внутри бандла перезапускать надо сам бандл, а не исполняемый файл:
 	// запущенный напрямую, он не получит ни иконки, ни Info.plist.
 	if bundle, ok := appBundle(binary); ok {
-		if err := exec.Command("open", "-n", bundle).Start(); err != nil {
+		// Run, а не Start: open завершается сразу после того, как отдал
+		// приложение системе, и его код возврата — единственный способ узнать,
+		// что новый экземпляр не поднялся. Со Start мы бы погасили текущее
+		// приложение, не заметив этого.
+		if err := exec.Command("open", "-n", bundle).Run(); err != nil {
 			return fmt.Errorf("restart %s: %w", bundle, err)
 		}
 		return nil
 	}
+	// Вне бандла запущен сам бинарник, и ждать его нельзя: это и есть
+	// приложение, а не утилита запуска.
 	if err := exec.Command(binary).Start(); err != nil {
 		return fmt.Errorf("restart %s: %w", binary, err)
 	}

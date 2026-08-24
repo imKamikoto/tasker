@@ -25,7 +25,7 @@ func infoService(t *testing.T) (*Info, *notes.Service) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vaults, err := NewVaults(home, nil)
+	vaults, err := NewVaults(home, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

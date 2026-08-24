@@ -10,7 +10,7 @@ import (
 
 func newVaults(t *testing.T, pick func() (string, error)) *Vaults {
 	t.Helper()
-	v, err := NewVaults(t.TempDir(), pick)
+	v, err := NewVaults(t.TempDir(), pick, func() {})
 	if err != nil {
 		t.Fatalf("NewVaults: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestVaultsSurvivesRestart(t *testing.T) {
 	home := t.TempDir()
 	paths := dirs(t, 1)
 
-	first, err := NewVaults(home, nil)
+	first, err := NewVaults(home, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestVaultsSurvivesRestart(t *testing.T) {
 	}
 
 	// Второй экземпляр поверх того же home — то же самое, что новый запуск.
-	second, err := NewVaults(home, nil)
+	second, err := NewVaults(home, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,5 +228,47 @@ func TestAppBundle(t *testing.T) {
 		if ok != c.ok || got != c.want {
 			t.Errorf("appBundle(%q) = %q, %v; ожидалось %q, %v", c.binary, got, ok, c.want, c.ok)
 		}
+	}
+}
+
+// Перезапуск обязан погасить текущее приложение, а не просто поднять второе.
+//
+// Без гашения смена папки давала два окна разом — новое с новой папкой и
+// старое со старой, — и человек продолжал работать в том, которое видел.
+func TestVaultsRestartShutsDownCurrent(t *testing.T) {
+	v := newVaults(t, nil)
+
+	var order []string
+	v.launch = func() error {
+		order = append(order, "launch")
+		return nil
+	}
+	v.shutdown = func() { order = append(order, "shutdown") }
+
+	if err := v.Restart(); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+	if !reflect.DeepEqual(order, []string{"launch", "shutdown"}) {
+		t.Errorf("порядок = %v, ожидался запуск нового и только потом гашение", order)
+	}
+}
+
+// Не поднялся новый экземпляр — текущий остаётся работать.
+//
+// Иначе неудачный перезапуск оставляет человека перед пустым экраном, а
+// хранилище уже переключено: следующий запуск откроет не то, что было.
+func TestVaultsRestartKeepsCurrentWhenLaunchFails(t *testing.T) {
+	v := newVaults(t, nil)
+
+	boom := errors.New("не запустилось")
+	v.launch = func() error { return boom }
+	stopped := false
+	v.shutdown = func() { stopped = true }
+
+	if err := v.Restart(); !errors.Is(err, boom) {
+		t.Errorf("Restart = %v, ожидалась ошибка запуска", err)
+	}
+	if stopped {
+		t.Error("текущее приложение погашено, хотя новое не поднялось")
 	}
 }

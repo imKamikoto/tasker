@@ -49,7 +49,10 @@ func run(args []string) error {
 	// Замыкание, а не готовый диалог: приложения, у которого его спрашивать,
 	// ещё нет, а путь к хранилищу нужен прямо сейчас. К моменту вызова
 	// instance уже заполнен — Choose зовут из вебвью, то есть после запуска.
-	var instance *application.App
+	var (
+		instance *application.App
+		window   *application.WebviewWindow
+	)
 	vaults, err := app.NewVaults("", func() (string, error) {
 		if instance == nil {
 			return "", errors.New("приложение ещё не запущено")
@@ -60,6 +63,13 @@ func run(args []string) error {
 			CanCreateDirectories(true).
 			SetTitle("Папка с заметками").
 			PromptForSingleSelection()
+	}, func() {
+		// Не Quit, а закрытие окна: на нём висит хук, который просит интерфейс
+		// дописать буфер и уводит последние правки в историю. Приложение
+		// завершится следом само — ApplicationShouldTerminateAfterLastWindowClosed.
+		if window != nil {
+			window.Close()
+		}
 	})
 	if err != nil {
 		return err
@@ -105,7 +115,7 @@ func run(args []string) error {
 	// редактор примется перечитывать собственный буфер (SPEC §5.3).
 	service.Vault().OnWrite(files.Ignore)
 
-	instance, window := newApplication(service, keymap, vaults)
+	instance, window = newApplication(service, keymap, vaults)
 
 	go app.NewWatch(service, emitter(instance), logError).Run(ctx, files.Events())
 	registerClosing(instance, window, service)
