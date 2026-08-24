@@ -3,7 +3,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Counts, Notebook, Tag } from "../api";
 import { tagColor, tagStyle } from "../tags";
 import { notebookRows } from "../tree";
+import { topAccented, topGlyphs, topLabels, topRows, type TopKind } from "../toprows";
 import { NameInput } from "./NameInput";
+
+/** Какой отбор включает верхний пункт. */
+function topFilter(kind: TopKind): Filter {
+  return kind === "active" ? { kind: "active" } : kind === "all" ? { kind: "all" } : { kind: "agent" };
+}
+
+/** Счётчик рядом с верхним пунктом. */
+function topCount(kind: TopKind, counts: Counts): number {
+  return kind === "active" ? counts.Active : kind === "all" ? counts.All : counts.Agent;
+}
 
 export type Filter =
   | { kind: "active" }
@@ -23,6 +34,9 @@ type Props = {
   onFilter: (filter: Filter) => void;
   collapsed: string[];
   /** Секции сайдбара, свёрнутые целиком. */
+  /** Порядок и видимость верхних пунктов — из настроек. */
+  topOrder: string[];
+  topHidden: string[];
   notebooksCollapsed: boolean;
   tagsCollapsed: boolean;
   onToggleSection: (section: "notebooks" | "tags") => void;
@@ -67,6 +81,8 @@ export function Sidebar({
   filter,
   onFilter,
   collapsed,
+  topOrder,
+  topHidden,
   notebooksCollapsed,
   tagsCollapsed,
   onToggleSection,
@@ -95,6 +111,11 @@ export function Sidebar({
   // отпускания кнопки: иначе непонятно, куда именно попадёт.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
+  const tops = useMemo(
+    () => topRows(topOrder, topHidden, counts.Agent > 0),
+    [topOrder, topHidden, counts.Agent],
+  );
+
   const rows = notebookRows(
     notebooks.map((notebook) => ({ path: notebook.Path, count: notebook.Count })),
     collapsed,
@@ -104,11 +125,9 @@ export function Sidebar({
   // что и разметка, и в том же порядке: два независимых списка разошлись бы
   // на первом же ноутбуке без заметок.
   const items = useMemo<Item[]>(() => {
-    const out: Item[] = [
-      { key: "active", filter: { kind: "active" } },
-      { key: "all", filter: { kind: "all" } },
-    ];
-    if (counts.Agent > 0) out.push({ key: "agent", filter: { kind: "agent" } });
+    // Из того же списка, что и разметка: два независимых порядка разошлись бы
+    // на первой же перестановке, и курсор пошёл бы не туда, куда смотрят.
+    const out: Item[] = tops.map((kind) => ({ key: kind, filter: topFilter(kind) }));
     // Свёрнутая секция выпадает и отсюда: иначе курсор уезжал бы в строки,
     // которых на экране нет, и j/k выглядели бы сломанными.
     if (!notebooksCollapsed) {
@@ -129,7 +148,7 @@ export function Sidebar({
     }
     out.push({ key: "trash", filter: { kind: "trash" } });
     return out;
-  }, [counts.Agent, rows, tags, notebooksCollapsed, tagsCollapsed]);
+  }, [tops, rows, tags, notebooksCollapsed, tagsCollapsed]);
 
   const [cursor, setCursor] = useState(0);
   // Список мог укоротиться под курсором: ноутбук свернули или удалили тег.
@@ -191,42 +210,24 @@ export function Sidebar({
         </button>
       </div>
 
+      {/* Порядок и видимость правит человек в настройках; правила «чего не
+          бывает» и «что появляется само» — в toprows.ts. */}
       <div className="sidebar__group sidebar__group--top">
-        {/* «Активные» первым: это главный экран рабочего дня (SPEC §8.3). */}
-        <button
-          className="row row--top"
-          data-cursor={cursorKey === "active"}
-          aria-selected={filter.kind === "active"}
-          onClick={() => onFilter({ kind: "active" })}
-        >
-          <span className="row__glyph row__glyph--accent">▸</span>
-          <span className="row__label">Активные</span>
-          <span className="row__count">{counts.Active || ""}</span>
-        </button>
-        <button
-          className="row row--top"
-          data-cursor={cursorKey === "all"}
-          aria-selected={filter.kind === "all"}
-          onClick={() => onFilter({ kind: "all" })}
-        >
-          <span className="row__glyph">≡</span>
-          <span className="row__label">Все заметки</span>
-          <span className="row__count">{counts.All || ""}</span>
-        </button>
-        {/* Пункт появляется, только когда агент что-то написал: пустой раздел
-            «От агента» в vault, куда агент не ходит, — просто шум. */}
-        {counts.Agent > 0 && (
+        {tops.map((kind) => (
           <button
+            key={kind}
             className="row row--top"
-            data-cursor={cursorKey === "agent"}
-            aria-selected={filter.kind === "agent"}
-            onClick={() => onFilter({ kind: "agent" })}
+            data-cursor={cursorKey === kind}
+            aria-selected={filter.kind === kind}
+            onClick={() => onFilter(topFilter(kind))}
           >
-            <span className="row__glyph row__glyph--accent">◆</span>
-            <span className="row__label">От агента</span>
-            <span className="row__count">{counts.Agent}</span>
+            <span className={topAccented[kind] ? "row__glyph row__glyph--accent" : "row__glyph"}>
+              {topGlyphs[kind]}
+            </span>
+            <span className="row__label">{topLabels[kind]}</span>
+            <span className="row__count">{topCount(kind, counts) || ""}</span>
           </button>
-        )}
+        ))}
       </div>
 
       <div className="sidebar__scroll">

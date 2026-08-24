@@ -1519,6 +1519,31 @@ button.row__label {
   caret-color: var(--color-accent);
 }
 
+/* Строка перестановки: тумблер слева, стрелки справа. */
+.reorder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reorder__spacer {
+  flex: 1;
+}
+
+.reorder__button {
+  width: 22px;
+  height: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: none;
+  color: var(--color-fg);
+  font: calc(11px * var(--ui-scale))/1 var(--font-mono);
+}
+
+.reorder__button:disabled {
+  opacity: 0.35;
+}
+
 /* Образец текста в настройках редактора. Переменные те же, что у настоящего
    редактора (--editor-font-size, --editor-line-height): App выставляет их на
    :root, поэтому образец меняется вместе с ползунком, без своей арифметики. */

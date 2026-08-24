@@ -71,6 +71,15 @@ export type UISettings = {
   notebooksCollapsed: boolean;
   tagsCollapsed: boolean;
   /**
+   * Порядок и видимость верхних пунктов сайдбара.
+   *
+   * Списком имён, а не числами: имя переживает добавление нового пункта, а
+   * позиция — нет. Незнакомое имя и недостающий пункт разбираются в toprows.ts,
+   * а не здесь: испорченный файл не должен прятать пункты навсегда.
+   */
+  topOrder: string[];
+  topHidden: string[];
+  /**
    * Масштаб текста. Единица — исходный размер.
    *
    * Растёт только кегль: колонки сохраняют ширину, и на экране остаётся
@@ -170,6 +179,9 @@ export const defaultSettings: UISettings = {
   sidebarHidden: false,
   notebooksCollapsed: false,
   tagsCollapsed: false,
+  // Пустой порядок означает «как было»: toprows.ts дописывает недостающее.
+  topOrder: [],
+  topHidden: [],
   textScale: 1,
 };
 
@@ -195,6 +207,8 @@ export function parseSettings(raw: string): UISettings {
   const source = parsed as Record<string, unknown>;
   const num = (key: keyof typeof limits, fallback: number) =>
     clamp(source[key], fallback, limits[key].min, limits[key].max, limits[key].step);
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
   const flag = (key: keyof UISettings) =>
     typeof source[key] === "boolean" ? (source[key] as boolean) : (defaultSettings[key] as boolean);
 
@@ -205,9 +219,7 @@ export function parseSettings(raw: string): UISettings {
       ? (source.sortField as SortField)
       : defaultSettings.sortField,
     sortReversed: source.sortReversed === true,
-    collapsed: Array.isArray(source.collapsed)
-      ? source.collapsed.filter((item): item is string => typeof item === "string")
-      : [],
+    collapsed: strings(source.collapsed),
 
     theme: themes.includes(source.theme as Theme)
       ? (source.theme as Theme)
@@ -238,6 +250,8 @@ export function parseSettings(raw: string): UISettings {
     sidebarHidden: flag("sidebarHidden"),
     notebooksCollapsed: flag("notebooksCollapsed"),
     tagsCollapsed: flag("tagsCollapsed"),
+    topOrder: strings(source.topOrder),
+    topHidden: strings(source.topHidden),
     textScale: num("textScale", defaultSettings.textScale),
   };
 }

@@ -1,4 +1,5 @@
 import { accentNames, accents, limits, type Theme, type UISettings } from "../../settings";
+import { move, topLabels, topRows } from "../../toprows";
 import { Card, Row, Slider, Toggle } from "./controls";
 
 type Props = {
@@ -19,6 +20,12 @@ export function Appearance({ settings, onChange, onBattery }: Props) {
   // Прозрачность может быть выставлена, но не действовать: об этом надо
   // сказать прямо, иначе ползунок выглядит сломанным.
   const muted = settings.opaqueOnBattery && onBattery && settings.transparency > 0;
+
+  // Порядок берётся тем же кодом, что и сайдбар, но со спрятанными: их надо
+  // показать выключенными, а не потерять — иначе включить обратно нечем.
+  // Пункт агента показываем всегда: настройка про порядок, а не про то, есть
+  // ли сейчас заметки от агента.
+  const order = topRows(settings.topOrder, [], true);
 
   return (
     <>
@@ -140,6 +147,48 @@ export function Appearance({ settings, onChange, onBattery }: Props) {
                 Сейчас машина на батарее — панели непрозрачны, пока её не подключат.
               </span>
             )}
+          </div>
+        </Row>
+      </Card>
+
+      <Card>
+        <Row label="Верх сайдбара" hint="Порядок и видимость. Корзина всегда внизу колонки">
+          <div className="stack">
+            {order.map((kind, position) => (
+              <div key={kind} className="reorder">
+                <Toggle
+                  checked={!settings.topHidden.includes(kind)}
+                  label={topLabels[kind]}
+                  onChange={(visible) =>
+                    onChange({
+                      topHidden: visible
+                        ? settings.topHidden.filter((item) => item !== kind)
+                        : [...settings.topHidden, kind],
+                    })
+                  }
+                />
+                <span className="reorder__spacer" />
+                <button
+                  className="reorder__button"
+                  aria-label="выше"
+                  disabled={position === 0}
+                  onClick={() => onChange({ topOrder: move(order, kind, -1) })}
+                >
+                  ↑
+                </button>
+                <button
+                  className="reorder__button"
+                  aria-label="ниже"
+                  disabled={position === order.length - 1}
+                  onClick={() => onChange({ topOrder: move(order, kind, 1) })}
+                >
+                  ↓
+                </button>
+              </div>
+            ))}
+            <span className="card__note">
+              «От агента» появляется, только когда агент что-то писал в это хранилище.
+            </span>
           </div>
         </Row>
       </Card>

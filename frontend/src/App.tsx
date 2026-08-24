@@ -676,6 +676,8 @@ export default function App() {
         filter={filter}
         onFilter={onFilter}
         collapsed={settings.collapsed}
+        topOrder={settings.topOrder}
+        topHidden={settings.topHidden}
         notebooksCollapsed={settings.notebooksCollapsed}
         tagsCollapsed={settings.tagsCollapsed}
         onToggleSection={(section) =>
