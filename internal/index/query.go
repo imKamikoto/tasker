@@ -163,6 +163,12 @@ func parseToken(tok token) (Term, error) {
 	}
 
 	switch strings.ToLower(name) {
+	case "book":
+		// У корня vault нет имени: в индексе его ноутбук — пустая строка, а
+		// пустое значение фильтра уже занято под опечатку и отвергается выше.
+		// Поэтому корень называется косой чертой, и она же снимается с любого
+		// пути: book:/Работа и book:Работа — одно и то же.
+		value = strings.TrimPrefix(value, "/")
 	case "title", "body":
 		return Term{Kind: TermText, Field: strings.ToLower(name), Value: value, Negated: negated}, nil
 	case "status":

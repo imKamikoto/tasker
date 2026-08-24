@@ -141,6 +141,37 @@ func TestSearchNotebookIsNotStringPrefix(t *testing.T) {
 	}
 }
 
+// Корень vault — отдельный ноутбук, а не родитель всего дерева.
+//
+// Иначе book:/ означало бы «все заметки», а это уже отдельный пункт сайдбара,
+// и счётчик под «Корнем» перестал бы совпадать с тем, что открывается щелчком
+// по нему.
+func TestSearchRootNotebookExcludesNested(t *testing.T) {
+	ix, _ := testIndex(t)
+	ctx := context.Background()
+	seed(t, ix)
+
+	base := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	if err := ix.Put(ctx, Record{
+		ID: "01K3QF8ZN7X2WPBV4YHMC6TDC1", Path: "vhodyaschie.md", Notebook: "",
+		Title: "Входящие", Status: "none",
+		Body:    "Лежит прямо в корне хранилища",
+		Created: base, Updated: base, ModTime: base, Size: 100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := titles(search(t, ix, "book:/"))
+	if len(got) != 1 || got[0] != "Входящие" {
+		t.Errorf("book:/ нашёл %v, ожидалась только заметка из корня", got)
+	}
+
+	// Отрицание должно работать зеркально: всё, кроме корня.
+	if hasTitle(search(t, ix, "-book:/ счётчик"), "Входящие") {
+		t.Error("-book:/ вернул заметку из корня")
+	}
+}
+
 // Символы шаблона LIKE в значении не должны превращать его в шаблон.
 func TestSearchNotebookEscapesLikeWildcards(t *testing.T) {
 	ix, _ := testIndex(t)

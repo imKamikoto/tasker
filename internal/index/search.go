@@ -218,6 +218,14 @@ func (q Query) conditions() ([]string, []any, error) {
 			args = append(args, expr)
 
 		case TermNotebook:
+			// Корень vault — сам по себе, без вложенных: «с вложенными» здесь
+			// означало бы весь vault, а это отдельный пункт сайдбара, и
+			// счётчик под «Корнем» перестал бы совпадать с тем, что
+			// открывается щелчком по нему.
+			if t.Value == "" {
+				clauses = append(clauses, negate(t, `n.notebook = ''`))
+				continue
+			}
 			// Ноутбук со всеми вложенными. Сравнение с добавленным слэшем, а не
 			// просто по префиксу строки: иначе book:Работа зацепит «Работа-старая».
 			clauses = append(clauses,

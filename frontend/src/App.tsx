@@ -845,7 +845,11 @@ function step(notes: Note[], selected: string | null, direction: 1 | -1): string
  */
 function buildQuery(filter: Filter, query: string): string {
   const parts: string[] = [];
-  if (filter.kind === "notebook") parts.push(`book:${quote(filter.path)}`);
+  // Корень vault приходит из Go пустым путём, а пустое значение фильтра язык
+  // запросов считает опечаткой и отвергает. Корень называется косой чертой.
+  if (filter.kind === "notebook") {
+    parts.push(`book:${filter.path === "" ? "/" : quote(filter.path)}`);
+  }
   if (filter.kind === "agent") parts.push("is:agent");
   // Несколько тегов соединяются через И — это делает сам язык запросов.
   if (filter.kind === "tags") parts.push(...filter.names.map((name) => `tag:${quote(name)}`));
