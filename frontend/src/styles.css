@@ -1519,6 +1519,43 @@ button.row__label {
   caret-color: var(--color-accent);
 }
 
+/* Образец текста в настройках редактора. Переменные те же, что у настоящего
+   редактора (--editor-font-size, --editor-line-height): App выставляет их на
+   :root, поэтому образец меняется вместе с ползунком, без своей арифметики. */
+.preview {
+  overflow: hidden;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  font: var(--editor-font-size)/var(--editor-line-height) var(--font-mono);
+  color: var(--color-fg);
+}
+
+.preview__line {
+  display: flex;
+  gap: 10px;
+}
+
+.preview__number {
+  flex: none;
+  width: 1.5em;
+  text-align: right;
+  color: var(--color-fg-dim);
+}
+
+.preview__text {
+  min-width: 0;
+  white-space: pre;
+}
+
+/* Перенос включён — длинная строка складывается, а не уезжает за край. */
+.preview[data-wrap="true"] .preview__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Строка шаблона выше обычной: под именем идёт превью, и без него из списка
    не видно, что именно вставится. */
 .row--template {

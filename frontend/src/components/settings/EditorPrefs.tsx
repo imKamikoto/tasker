@@ -6,9 +6,38 @@ type Props = {
   onChange: (patch: Partial<UISettings>) => void;
 };
 
+/**
+ * Образец текста для превью.
+ *
+ * Не «Съешь ещё этих мягких булок»: настраивают здесь чтение кода и списков,
+ * и показывать надо ровно то, из чего заметки и состоят. Длинная строка нужна
+ * специально — на ней видно, что делает перенос.
+ */
+const sample = [
+  "## Заголовок заметки",
+  "",
+  "- [x] сделанный пункт",
+  "- [ ] длинная строка, на которой видно, переносится текст по ширине колонки или уезжает вбок за край",
+  "",
+  "`код в строке` и обычный текст",
+];
+
 export function EditorPrefs({ settings, onChange }: Props) {
   return (
     <>
+      {/* Превью прямо в настройках: иначе, чтобы увидеть кегль и интерлиньяж,
+          приходится закрыть окно, посмотреть и открыть заново. Переменные те
+          же, что и у настоящего редактора, — App выставляет их на :root, и
+          образец меняется вместе с ползунком. */}
+      <div className="preview" data-numbers={settings.lineNumbers} data-wrap={settings.lineWrap}>
+        {sample.map((line, i) => (
+          <div key={i} className="preview__line">
+            {settings.lineNumbers && <span className="preview__number">{i + 1}</span>}
+            <span className="preview__text">{line}</span>
+          </div>
+        ))}
+      </div>
+
       <Card>
         <Row label="Кегль" hint="Тело заметки и код">
           <Slider
