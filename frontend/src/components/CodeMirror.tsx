@@ -1,11 +1,18 @@
 import { useEffect, useRef } from "react";
 
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentLess,
+  indentMore,
+  indentWithTab,
+} from "@codemirror/commands";
 import { languages } from "@codemirror/language-data";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { bracketMatching, indentOnInput } from "@codemirror/language";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
 import {
   EditorView,
   drawSelection,
@@ -19,6 +26,7 @@ import { Vim, getCM, vim } from "@replit/codemirror-vim";
 
 import { checkboxHighlight } from "../checkboxes";
 import { taskerHighlight, taskerTheme } from "../editorTheme";
+import { spansLines } from "../indent";
 import { continueList } from "../lists";
 import { RU_LANGMAP } from "../langmap";
 
@@ -41,6 +49,24 @@ type Props = {
   /** Переносить длинные строки. */
   lineWrap: boolean;
 };
+
+/**
+ * indentBlock двигает выделение вправо, если оно задевает больше одной строки.
+ *
+ * Возвращает false на выделении внутри строки — нажатие уходит дальше по
+ * цепочке, и Tab печатает, как печатал.
+ */
+function indentBlock(shift: boolean) {
+  return (view: EditorView): boolean => {
+    const { state } = view;
+    const ranges = state.selection.ranges.map((range) => ({
+      fromLine: state.doc.lineAt(range.from).number,
+      toLine: state.doc.lineAt(range.to).number,
+    }));
+    if (!spansLines(ranges)) return false;
+    return shift ? indentLess(view) : indentMore(view);
+  };
+}
 
 /** Что показывает строка статуса под текстом. */
 export type EditorStatus = {
@@ -109,6 +135,22 @@ export function CodeMirror({
       state: EditorState.create({
         doc: initialDoc,
         extensions: [
+          // Отступ блока — выше вима, иначе до него не доходит: кеймап вима
+          // стоит первым и Tab забирает себе. Cmd-скобки работают в любом
+          // режиме и не спорят ни с вимом, ни с набором; Tab перехватывается
+          // только когда выделение задевает больше одной строки — там он
+          // означает «сдвинуть», а не «вставить табуляцию».
+          Prec.highest(
+            keymap.of([
+              // Cmd-скобки двигают всегда, даже одну строку под кареткой:
+              // это привычная пара из редакторов macOS, и «ничего не выделено»
+              // там не повод не сдвинуть.
+              { key: "Mod-]", run: indentMore },
+              { key: "Mod-[", run: indentLess },
+              { key: "Tab", run: indentBlock(false) },
+              { key: "Shift-Tab", run: indentBlock(true) },
+            ]),
+          ),
           // Вим идёт первым, иначе его кеймап перекрывается дефолтным.
           // status: false — свою панель он рисует внутри редактора, а нам
           // нужна одна строка на всю ширину колонки, с режимом и позицией.
