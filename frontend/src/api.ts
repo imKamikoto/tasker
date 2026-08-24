@@ -10,9 +10,9 @@ import type {
   Notebook,
   Tag,
 } from "../bindings/tasker/internal/index/models";
-import type { Note, Stats } from "../bindings/tasker/internal/notes/models";
+import type { Note, Stats, Template, TemplateResult } from "../bindings/tasker/internal/notes/models";
 
-export type { Build, Counts, NoteRecord, Notebook, Paths, Stats, Tag, Note };
+export type { Build, Counts, NoteRecord, Notebook, Paths, Stats, Tag, Note, Template, TemplateResult };
 
 /**
  * Единственная точка, через которую фронтенд говорит с Go.
@@ -36,6 +36,8 @@ export const api = {
   // Вложение едет строкой base64: массив байтов через биндинги превращается в
   // числа по одному, и вставка скриншота стоила бы мегабайтов JSON.
   addAttachment: (filename: string, base64: string) => Notes.AddAttachment(filename, base64),
+  templates: () => Notes.Templates(),
+  applyTemplate: (id: string, template: string) => Notes.ApplyTemplate(id, template),
   setTagColor: (name: string, color: number) => Notes.SetTagColor(name, color),
   duplicate: (id: string) => Notes.Duplicate(id),
   move: (id: string, notebook: string) => Notes.Move(id, notebook),

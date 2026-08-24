@@ -3,5 +3,7 @@
 
 export type {
     Note,
-    Stats
+    Stats,
+    Template,
+    TemplateResult
 } from "./models.js";

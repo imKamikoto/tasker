@@ -37,6 +37,13 @@ export function AddAttachment(filename: string, encoded: string): $CancellablePr
 }
 
 /**
+ * ApplyTemplate накладывает шаблон на заметку и говорит, куда поставить каретку.
+ */
+export function ApplyTemplate(id: string, template: string): $CancellablePromise<notes$0.TemplateResult> {
+    return $Call.ByID(311696782, id, template);
+}
+
+/**
  * Counts возвращает счётчики для верхних пунктов сайдбара.
  */
 export function Counts(): $CancellablePromise<index$0.Counts> {
@@ -204,6 +211,13 @@ export function Tags(): $CancellablePromise<index$0.Tag[] | null> {
  */
 export function Tasks(limit: number): $CancellablePromise<notes$0.Note[] | null> {
     return $Call.ByID(4129384194, limit);
+}
+
+/**
+ * Templates перечисляет шаблоны из папки templates/ (SPEC §8.10).
+ */
+export function Templates(): $CancellablePromise<notes$0.Template[] | null> {
+    return $Call.ByID(3688156363);
 }
 
 /**

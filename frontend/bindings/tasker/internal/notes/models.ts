@@ -83,3 +83,40 @@ export interface Stats {
      */
     "Tags": number;
 }
+
+/**
+ * Template — шаблон, каким его показывают в пикере.
+ */
+export interface Template {
+    /**
+     * Name — имя файла без расширения: по нему шаблон ищут в пикере.
+     */
+    "Name": string;
+
+    /**
+     * Path — путь от корня хранилища.
+     */
+    "Path": string;
+
+    /**
+     * Title — заголовок будущей заметки из блока _template, если он задан.
+     */
+    "Title": string;
+
+    /**
+     * Preview — начало тела, чтобы было видно, что именно вставится.
+     */
+    "Preview": string;
+}
+
+/**
+ * TemplateResult — заметка после применения шаблона и место для каретки.
+ */
+export interface TemplateResult {
+    "Record": index$0.Record;
+
+    /**
+     * Cursor — смещение каретки в теле; -1, если шаблон её не задавал.
+     */
+    "Cursor": number;
+}

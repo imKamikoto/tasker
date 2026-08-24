@@ -180,6 +180,16 @@ func (n *Notes) AddAttachment(ctx context.Context, filename, encoded string) (At
 	}, nil
 }
 
+// Templates перечисляет шаблоны из папки templates/ (SPEC §8.10).
+func (n *Notes) Templates(ctx context.Context) ([]notes.Template, error) {
+	return n.service.Templates(ctx)
+}
+
+// ApplyTemplate накладывает шаблон на заметку и говорит, куда поставить каретку.
+func (n *Notes) ApplyTemplate(ctx context.Context, id, template string) (notes.TemplateResult, error) {
+	return n.service.ApplyTemplate(ctx, id, template)
+}
+
 // DeleteTag убирает тег из всех заметок одним коммитом, вместе с корзиной.
 func (n *Notes) DeleteTag(ctx context.Context, name string) ([]index.Record, error) {
 	return n.service.DeleteTag(ctx, name)

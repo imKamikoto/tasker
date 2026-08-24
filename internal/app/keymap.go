@@ -49,7 +49,10 @@ func defaultKeymap() map[string]map[string]string {
 			"cmd+n": "note.create",
 			// Запятая с cmd — общесистемное «настройки», человек попробует её
 			// первой, ещё не зная, есть она здесь или нет.
-			"cmd+,":      "note.settings",
+			"cmd+,": "note.settings",
+			// Шаблон применяют к уже заведённой заметке (SPEC §8.10), поэтому
+			// сочетание глобальное: жать его будут прямо из текста.
+			"cmd+t":      "note.template",
 			"cmd+ctrl+1": "note.status.none",
 			"cmd+ctrl+2": "note.status.active",
 			"cmd+ctrl+3": "note.status.onhold",

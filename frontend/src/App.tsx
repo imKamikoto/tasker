@@ -11,11 +11,13 @@ import {
   type NoteRecord,
   type Notebook,
   type Tag,
+  type Template,
 } from "./api";
 import { BulkPane } from "./components/BulkPane";
 import { Editor } from "./components/Editor";
 import { EmptySearch, EmptyVault } from "./components/EmptyState";
 import { MovePicker } from "./components/MovePicker";
+import { TemplatePicker } from "./components/TemplatePicker";
 import { NoteList } from "./components/NoteList";
 import { NoteMenu } from "./components/NoteMenu";
 import { Settings } from "./components/Settings";
@@ -127,6 +129,9 @@ export default function App() {
 
   // Открыт ли выбор ноутбука для переноса (клавиша m).
   const [moving, setMoving] = useState(false);
+  // Шаблоны читаются в момент открытия пикера, а не при запуске: папку
+  // templates правят в Finder, и список, прочитанный час назад, устареет.
+  const [templates, setTemplates] = useState<Template[] | null>(null);
   // Открыт ли экран настроек (Cmd+,).
   const [prefs, setPrefs] = useState(false);
   // Машина на батарее: от этого зависит, действует ли прозрачность.
@@ -450,6 +455,16 @@ export default function App() {
           event.preventDefault();
           setPrefs(true);
           return;
+        case "note.template":
+          // Шаблон накладывается на заметку, поэтому без открытой заметки
+          // применять его не к чему.
+          if (!single) return;
+          event.preventDefault();
+          api
+            .templates()
+            .then((found) => setTemplates(found ?? []))
+            .catch((err) => setListError(describeError(err)));
+          return;
         case "view.sidebar":
           event.preventDefault();
           setSettings((current) => ({ ...current, sidebarHidden: !current.sidebarHidden }));
@@ -589,6 +604,25 @@ export default function App() {
               .catch((err) => setListError(describeError(err)));
           }}
           onClose={() => setPrefs(false)}
+        />
+      )}
+
+      {templates !== null && single && (
+        <TemplatePicker
+          templates={templates}
+          onCancel={() => setTemplates(null)}
+          onPick={(path) => {
+            setTemplates(null);
+            api
+              .applyTemplate(single, path)
+              .then(() => {
+                // Заметка переписана целиком — перечитываем её и список:
+                // поменяться могли заголовок, ноутбук, теги и статус разом.
+                dirty.current = false;
+                setRevision((n) => n + 1);
+              })
+              .catch((err) => setListError(describeError(err)));
+          }}
         />
       )}
 

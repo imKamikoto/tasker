@@ -38,6 +38,7 @@ export const commands: CommandInfo[] = [
   { id: "note.status.completed", context: "global", label: "Статус: завершена" },
   { id: "note.status.dropped", context: "global", label: "Статус: брошена" },
   { id: "note.settings", context: "global", label: "Настройки" },
+  { id: "note.template", context: "global", label: "Применить шаблон" },
   { id: "focus.prev", context: "global", label: "Фокус на колонку левее" },
   { id: "focus.next", context: "global", label: "Фокус на колонку правее" },
   { id: "view.sidebar", context: "global", label: "Скрыть и показать сайдбар" },
