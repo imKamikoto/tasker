@@ -14,7 +14,9 @@ type Props = {
 };
 
 export function Agent({ settings, onChange, paths, stats, vault }: Props) {
-  const [copied, setCopied] = useState(false);
+  // Что именно скопировали: подпись «Скопировано» должна стоять на нажатой
+  // кнопке, а не на обеих сразу.
+  const [copied, setCopied] = useState("");
 
   const mcp = paths?.MCP ?? "";
   // Готовый кусок конфига: набирать его руками — верный способ ошибиться в
@@ -29,10 +31,20 @@ export function Agent({ settings, onChange, paths, stats, vault }: Props) {
     2,
   );
 
-  const copy = () => {
-    void navigator.clipboard.writeText(config).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+  /**
+   * Готовая команда для Claude Code.
+   *
+   * Пути в кавычках: и хранилище, и приложение живут там, где человек их
+   * положил, а в «Моих документах» и на рабочем столе пробелы обычное дело.
+   * Область user, а не project: заметки одни на все проекты, и подключать их
+   * заново в каждом репозитории незачем.
+   */
+  const command = `claude mcp add tasker --scope user -- "${mcp || "<путь к tasker-mcp>"}" --vault "${vault}"`;
+
+  const copy = (what: string, text: string) => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(what);
+      window.setTimeout(() => setCopied(""), 2000);
     });
   };
 
@@ -75,12 +87,27 @@ export function Agent({ settings, onChange, paths, stats, vault }: Props) {
           </div>
         </Row>
 
-        <Row label="Конфиг для Claude Code">
+        <Row label="Подключить к Claude Code" hint="Скопировать и выполнить в терминале">
+          <div className="stack">
+            <pre className="codeblock">{command}</pre>
+            <div className="row-actions">
+              <button className="button button--accent" onClick={() => copy("command", command)}>
+                {copied === "command" ? "Скопировано" : "Скопировать команду"}
+              </button>
+            </div>
+            <span className="card__note">
+              Одна команда вместо правки конфига руками. Пути подставлены — те, что видит
+              приложение прямо сейчас.
+            </span>
+          </div>
+        </Row>
+
+        <Row label="Или конфигом" hint="Если MCP подключают не через Claude Code">
           <div className="stack">
             <pre className="codeblock">{config}</pre>
             <div className="row-actions">
-              <button className="button" onClick={copy}>
-                {copied ? "Скопировано" : "Скопировать"}
+              <button className="button" onClick={() => copy("config", config)}>
+                {copied === "config" ? "Скопировано" : "Скопировать"}
               </button>
             </div>
           </div>
