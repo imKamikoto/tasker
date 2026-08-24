@@ -58,6 +58,13 @@ export function DeleteNotebook(path: string): $CancellablePromise<index$0.Record
 }
 
 /**
+ * DeleteTag убирает тег из всех заметок одним коммитом, вместе с корзиной.
+ */
+export function DeleteTag(name: string): $CancellablePromise<index$0.Record[] | null> {
+    return $Call.ByID(1338820345, name);
+}
+
+/**
  * Duplicate создаёт копию заметки рядом с оригиналом.
  */
 export function Duplicate(id: string): $CancellablePromise<index$0.Record> {

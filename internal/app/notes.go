@@ -150,6 +150,11 @@ func (n *Notes) RenameTag(ctx context.Context, from, to string) ([]index.Record,
 	return n.service.RenameTag(ctx, from, to)
 }
 
+// DeleteTag убирает тег из всех заметок одним коммитом, вместе с корзиной.
+func (n *Notes) DeleteTag(ctx context.Context, name string) ([]index.Record, error) {
+	return n.service.DeleteTag(ctx, name)
+}
+
 // SetTags заменяет теги заметки целиком: поле под заголовком правится так.
 func (n *Notes) SetTags(ctx context.Context, id string, tags []string) (index.Record, error) {
 	return n.service.SetTags(ctx, id, tags)

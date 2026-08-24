@@ -611,6 +611,15 @@ export default function App() {
         onRenameNotebook={(from, to) => act(api.renameNotebook(from, to), true)}
         onDeleteNotebook={(path) => act(api.deleteNotebook(path), true)}
         onRenameTag={(from, to) => act(api.renameTag(from, to), true)}
+        onDeleteTag={(name) => {
+          // Отбор мог стоять на удаляемом теге: оставить его — значит показать
+          // пустой список без объяснения, почему он пуст.
+          if (filter.kind === "tags" && filter.names.includes(name)) {
+            const rest = filter.names.filter((item) => item !== name);
+            onFilter(rest.length > 0 ? { kind: "tags", names: rest } : { kind: "all" });
+          }
+          act(api.deleteTag(name), true);
+        }}
         onDropNote={(id, notebook) => {
           setDragging(0);
           // Тащат одну строку, но если она внутри выделения — переносится всё

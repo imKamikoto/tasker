@@ -37,6 +37,7 @@ type Props = {
   onRenameNotebook: (from: string, to: string) => void;
   onDeleteNotebook: (path: string) => void;
   onRenameTag: (from: string, to: string) => void;
+  onDeleteTag: (name: string) => void;
 };
 
 /**
@@ -73,10 +74,14 @@ export function Sidebar({
   onRenameNotebook,
   onDeleteNotebook,
   onRenameTag,
+  onDeleteTag,
 }: Props) {
   // Куда добавляем ноутбук: null — не добавляем, "" — в корень, иначе внутрь.
   const [adding, setAdding] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // Открытое меню одно на весь сайдбар, поэтому ключ общий для ноутбуков и
+  // тегов — и по той же схеме, что и cursorKey: путь ноутбука и имя тега живут
+  // в разных пространствах и без префикса могли бы совпасть.
   const [menu, setMenu] = useState<string | null>(null);
   const [renamingTag, setRenamingTag] = useState<string | null>(null);
   // Ноутбук под курсором с перетаскиваемой заметкой. Подсветка нужна до
@@ -305,7 +310,9 @@ export function Sidebar({
                     <button
                       className="row__more"
                       aria-label="действия с ноутбуком"
-                      onClick={() => setMenu(menu === row.path ? null : row.path)}
+                      onClick={() =>
+                        setMenu(menu === `book:${row.path}` ? null : `book:${row.path}`)
+                      }
                     >
                       ⋯
                     </button>
@@ -316,7 +323,7 @@ export function Sidebar({
                 </>
               )}
 
-              {menu === row.path && (
+              {menu === `book:${row.path}` && (
                 <div className="menu menu--right" onMouseLeave={() => setMenu(null)}>
                   <button
                     className="menu__item"
@@ -411,13 +418,35 @@ export function Sidebar({
                 </button>
                 <button
                   className="row__more"
-                  aria-label="переименовать тег"
-                  title="Переименовать во всех заметках"
-                  onClick={() => setRenamingTag(tag.Name)}
+                  aria-label="действия с тегом"
+                  onClick={() => setMenu(menu === `tag:${tag.Name}` ? null : `tag:${tag.Name}`)}
                 >
                   ⋯
                 </button>
                 <span className="row__count">{tag.Count || ""}</span>
+
+                {menu === `tag:${tag.Name}` && (
+                  <div className="menu menu--right" onMouseLeave={() => setMenu(null)}>
+                    <button
+                      className="menu__item"
+                      onClick={() => {
+                        setMenu(null);
+                        setRenamingTag(tag.Name);
+                      }}
+                    >
+                      <span className="menu__label">Переименовать</span>
+                    </button>
+                    <button
+                      className="menu__item menu__item--danger"
+                      onClick={() => {
+                        setMenu(null);
+                        onDeleteTag(tag.Name);
+                      }}
+                    >
+                      <span className="menu__label">Удалить во всех заметках</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ),
           )}

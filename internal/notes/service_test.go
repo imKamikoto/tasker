@@ -1277,3 +1277,129 @@ func TestNotebookOpsRejectRoot(t *testing.T) {
 		t.Error("корень удалён")
 	}
 }
+
+// Тег должно быть можно не только переименовать, но и убрать.
+//
+// Отдельного списка тегов нет: тег живёт ровно столько, сколько стоит хотя бы
+// в одной заметке, — поэтому удаление это снятие его со всех, одним коммитом.
+func TestDeleteTag(t *testing.T) {
+	s, root := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	for _, tags := range [][]string{{"баг", "срочно"}, {"баг"}, {"идея"}} {
+		if _, err := s.Create(ctx, CreateParams{Title: "Заметка " + tags[0], Tags: tags}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetTagColor(ctx, "баг", 3); err != nil {
+		t.Fatal(err)
+	}
+	before := commitCount(t, root)
+
+	updated, err := s.DeleteTag(ctx, "баг")
+	if err != nil {
+		t.Fatalf("DeleteTag: %v", err)
+	}
+	if len(updated) != 2 {
+		t.Fatalf("тронуто %d заметок, ожидалось 2", len(updated))
+	}
+	if added := commitCount(t, root) - before; added != 1 {
+		t.Errorf("коммитов добавилось %d, ожидался один", added)
+	}
+
+	if gone, err := s.Search(ctx, "tag:баг", SearchOptions{}); err != nil || len(gone) != 0 {
+		t.Errorf("по удалённому тегу нашлось %d: %v", len(gone), err)
+	}
+	// Соседние теги в тех же заметках не пострадали.
+	if other, err := s.Search(ctx, "tag:срочно", SearchOptions{}); err != nil || len(other) != 1 {
+		t.Errorf("тег «срочно» = %d: %v", len(other), err)
+	}
+	if other, err := s.Search(ctx, "tag:идея", SearchOptions{}); err != nil || len(other) != 1 {
+		t.Errorf("тег «идея» = %d: %v", len(other), err)
+	}
+	// Тег исчез из списка целиком, а не остался с нулевым счётчиком.
+	tags, err := s.Tags(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range tags {
+		if tag.Name == "баг" {
+			t.Errorf("тег остался в списке: %+v", tags)
+		}
+	}
+
+	// Выбранный руками цвет пережил бы удаление и достался бы новому тегу с
+	// тем же именем — а человек его для этого тега не выбирал.
+	if color, ok := s.TagColors()["баг"]; ok {
+		t.Errorf("цвет удалённого тега остался: %d", color)
+	}
+}
+
+func TestDeleteTagEdgeCases(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, CreateParams{Title: "Заметка", Tags: []string{"BUG"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.DeleteTag(ctx, "  "); !errors.Is(err, ErrEmptyTag) {
+		t.Errorf("пустое имя: %v", err)
+	}
+	if updated, err := s.DeleteTag(ctx, "которого-нет"); err != nil || len(updated) != 0 {
+		t.Errorf("несуществующий тег: %+v, %v", updated, err)
+	}
+	// Латиница в тегах регистронезависима — bug обязан убрать BUG.
+	updated, err := s.DeleteTag(ctx, "bug")
+	if err != nil {
+		t.Fatalf("DeleteTag: %v", err)
+	}
+	if len(updated) != 1 || len(updated[0].Tags) != 0 {
+		t.Errorf("после удаления: %+v", updated)
+	}
+}
+
+// Удаление тега достаёт и до корзины.
+//
+// Иначе тег воскресает дважды: ближайшая сверка возвращает его в сайдбар, —
+// файлы источник правды, а на диске он остался, — и восстановленная заметка
+// приносит его обратно.
+func TestDeleteTagReachesTrash(t *testing.T) {
+	s, _ := testService(t, vault.OriginUser)
+	ctx := context.Background()
+
+	created, err := s.Create(ctx, CreateParams{Title: "Удалённая", Tags: []string{"баг"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Trash(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.DeleteTag(ctx, "баг"); err != nil {
+		t.Fatalf("DeleteTag: %v", err)
+	}
+
+	// Сверка перечитывает диск: если бы тег остался в файле, он вернулся бы сюда.
+	if _, err := s.Sync(ctx); err != nil {
+		t.Fatal(err)
+	}
+	tags, err := s.Tags(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("после сверки теги = %+v, ожидался пустой список", tags)
+	}
+
+	restored, err := s.Restore(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get(ctx, restored.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Tags) != 0 {
+		t.Errorf("восстановленная заметка принесла тег обратно: %v", got.Tags)
+	}
+}

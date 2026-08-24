@@ -131,6 +131,33 @@ func (ix *Index) Tags(ctx context.Context) ([]Tag, error) {
 	return tags, nil
 }
 
+// ForgetTag убирает тег из индекса вместе со связями.
+//
+// Нужен потому, что строка в tags намеренно переживает удаление заметок (см.
+// Tags выше) и сама по себе не исчезнет: без этого удалённый тег остался бы в
+// сайдбаре с нулевым счётчиком. Вызывать только после того, как тег снят с
+// файлов, — индекс производный, и всё, чего нет в нём, но есть на диске,
+// вернётся ближайшей сверкой.
+//
+// Имя сравнивается без учёта регистра: так объявлены обе колонки (COLLATE
+// NOCASE), и bug обязан убрать BUG — иначе в списке остался бы тег, которого
+// уже нет ни в одной заметке.
+func (ix *Index) ForgetTag(ctx context.Context, name string) error {
+	tx, err := ix.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("forget tag %s: %w", name, err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM note_tags WHERE tag = ?`, name); err != nil {
+		return fmt.Errorf("forget tag %s: %w", name, err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM tags WHERE name = ?`, name); err != nil {
+		return fmt.Errorf("forget tag %s: %w", name, err)
+	}
+	return tx.Commit()
+}
+
 // Backlinks возвращает заметки, которые ссылаются на указанную.
 //
 // Это и есть панель бэклинков под редактором (SPEC §8.9): один индекс по

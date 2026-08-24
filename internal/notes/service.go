@@ -725,6 +725,65 @@ func (s *Service) RenameTag(ctx context.Context, from, to string) ([]index.Recor
 	})
 }
 
+// DeleteTag убирает тег из всех заметок одним коммитом.
+//
+// Отдельного списка тегов в vault нет: тег существует ровно постольку,
+// поскольку стоит хотя бы в одной заметке (файлы — источник правды). Поэтому
+// «удалить тег» — это снять его со всех, после чего он пропадает из сайдбара
+// сам, а не остаётся строкой с нулевым счётчиком.
+func (s *Service) DeleteTag(ctx context.Context, name string) ([]index.Record, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("delete tag %q: %w", name, ErrEmptyTag)
+	}
+
+	// Вместе с корзиной, в отличие от переименования: тег снимается насовсем,
+	// и оставить его на удалённых заметках значит получить две неприятности —
+	// он воскреснет в сайдбаре ближайшей сверкой (файлы источник правды) и
+	// вернётся вместе с восстановленной заметкой.
+	found, err := s.Search(ctx, "tag:"+quoteTerm(name), SearchOptions{Trash: index.TrashIncluded})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(found))
+	for _, note := range found {
+		ids = append(ids, note.ID)
+	}
+
+	updated, err := s.applyMany(ctx, ids, "delete tag", func(n *vault.Note) error {
+		tags, err := n.Doc.Meta.Tags()
+		if err != nil {
+			return err
+		}
+		// EqualFold по той же причине, что и в RenameTag: поиск по тегу в
+		// SQLite регистронезависим для латиницы, значит по запросу bug сюда
+		// доедет и заметка с тегом BUG.
+		next := slices.DeleteFunc(slices.Clone(tags), func(tag string) bool {
+			return strings.EqualFold(tag, name)
+		})
+		if err := n.Doc.Meta.SetTags(next); err != nil {
+			return err
+		}
+		return s.vault.Save(n)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Цвет выбирался руками и удаление тега пережил бы: заведённый заново тег
+	// с тем же именем оказался бы прежнего цвета, которого для него никто не
+	// выбирал.
+	if err := s.SetTagColor(ctx, name, AutoColor); err != nil {
+		return nil, err
+	}
+	// Файлы уже без тега — теперь его можно забыть и в индексе. Порядок
+	// обязателен: сначала диск, потом производное от него (CLAUDE.md, инвариант 1).
+	if err := s.index.ForgetTag(ctx, name); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
 // Note — заметка целиком: строка индекса, тело и связи.
 type Note struct {
 	index.Record
