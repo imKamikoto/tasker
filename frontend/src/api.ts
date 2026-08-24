@@ -85,7 +85,11 @@ export const api = {
   revealVault: (path: string) => Vaults.Reveal(path),
   restart: () => Vaults.Restart(),
 
-  // История: окно автокоммита живёт в настройках интерфейса и приезжает сюда.
+  // История: ведётся ли она вообще — решает Go и хранит рядом с заметками,
+  // потому что это свойство папки, а не интерфейса, и его читает ещё и
+  // tasker-mcp. Окно автокоммита, наоборот, живёт в настройках интерфейса.
+  gitSettings: () => Git.Settings(),
+  setGitEnabled: (enabled: boolean) => Git.SetEnabled(enabled),
   configureGit: (seconds: number) => Git.Configure(seconds),
   commitNow: () => Git.CommitNow(),
 };

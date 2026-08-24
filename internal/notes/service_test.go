@@ -16,12 +16,32 @@ import (
 func testService(t *testing.T, origin vault.Origin) (*Service, string) {
 	t.Helper()
 	root := t.TempDir()
-	s, err := Open(context.Background(), root, Options{Origin: origin})
+	s := openService(t, root, origin)
+	// В новой папке история выключена: хранилище — это просто файлы, и .git
+	// приложение само не заводит. Здешние тесты почти все про историю, поэтому
+	// включаем её явно.
+	if err := s.SetGitEnabled(context.Background(), true); err != nil {
+		t.Fatalf("SetGitEnabled: %v", err)
+	}
+	return s, root
+}
+
+// openService открывает сервис как есть, не трогая настройку истории.
+func openService(t *testing.T, root string, origin vault.Origin) *Service {
+	t.Helper()
+	// Свой ctx с отменой: на нём висит фоновый цикл коммитов, и без отмены он
+	// пережил бы тест.
+	ctx, cancel := context.WithCancel(context.Background())
+	s, err := Open(ctx, root, Options{Origin: origin})
 	if err != nil {
+		cancel()
 		t.Fatalf("Open: %v", err)
 	}
-	t.Cleanup(func() { s.Close() })
-	return s, root
+	t.Cleanup(func() {
+		s.Close()
+		cancel()
+	})
+	return s
 }
 
 func gitLog(t *testing.T, root string) string {

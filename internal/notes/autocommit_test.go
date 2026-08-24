@@ -2,13 +2,14 @@ package notes
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"tasker/internal/gitstore"
 	"tasker/internal/vault"
 )
 
@@ -29,27 +30,10 @@ func commits(t *testing.T, root string) int {
 	return n
 }
 
-// batchService открывает сервис с включённой пачкой.
+// batchService открывает сервис с историей и включённой пачкой.
 func batchService(t *testing.T, window time.Duration) *Service {
 	t.Helper()
-	root := t.TempDir()
-
-	// Автокоммиту нужен собственный store: сервис свой открывает сам, но
-	// снаружи до него не добраться до открытия.
-	store, err := gitstore.Open(root)
-	if err != nil {
-		t.Fatalf("gitstore.Open: %v", err)
-	}
-	auto := gitstore.NewAutocommit(store, window, func(err error) { t.Logf("автокоммит: %v", err) })
-
-	service, err := Open(context.Background(), root, Options{
-		Origin:     vault.OriginUser,
-		Autocommit: auto,
-	})
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { service.Close() })
+	service, _ := testService(t, vault.OriginUser)
 	service.SetCommitWindow(window)
 	return service
 }
@@ -126,29 +110,41 @@ func TestCommitWindowReportsWhatWasSet(t *testing.T) {
 	}
 }
 
-func TestServiceWithoutAutocommitIgnoresWindow(t *testing.T) {
-	// tasker-mcp открывается именно так: разовый процесс, копить нечего.
+// Папка без истории: окно настраивать нечего, коммитить некуда.
+//
+// Именно так открывается новое хранилище — и приложением, и tasker-mcp.
+func TestWithoutHistoryWindowIsIgnored(t *testing.T) {
 	root := t.TempDir()
-	service, err := Open(context.Background(), root, Options{Origin: vault.OriginAgent})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer service.Close()
+	service := openService(t, root, vault.OriginAgent)
 
 	service.SetCommitWindow(time.Hour)
 	if got := service.CommitWindow(); got != 0 {
-		t.Errorf("CommitWindow = %v, без автокоммита ожидался ноль", got)
+		t.Errorf("CommitWindow = %v, без истории ожидался ноль", got)
 	}
 	if err := service.FlushCommits(context.Background()); err != nil {
-		t.Errorf("FlushCommits без автокоммита вернул ошибку: %v", err)
+		t.Errorf("FlushCommits без истории вернул ошибку: %v", err)
 	}
 
-	ctx := context.Background()
-	before := commits(t, root)
-	if _, err := service.Create(ctx, CreateParams{Title: "Заметка"}); err != nil {
+	if _, err := service.Create(context.Background(), CreateParams{Title: "Заметка"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := commits(t, root) - before; got != 1 {
-		t.Errorf("коммитов %d, ожидался 1", got)
+	if _, err := os.Stat(filepath.Join(root, ".git")); !os.IsNotExist(err) {
+		t.Errorf(".git завёлся сам: %v", err)
+	}
+}
+
+// С включённой историей разовый процесс коммитит каждое сохранение сразу:
+// пачку он не включает, копить ему нечего и некогда.
+func TestAgentCommitsEverySaveWithHistory(t *testing.T) {
+	service, root := testService(t, vault.OriginAgent)
+
+	before := commits(t, root)
+	for _, title := range []string{"Раз", "Два"} {
+		if _, err := service.Create(context.Background(), CreateParams{Title: title}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := commits(t, root) - before; got != 2 {
+		t.Errorf("коммитов %d, ожидалось 2", got)
 	}
 }

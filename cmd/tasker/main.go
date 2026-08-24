@@ -83,18 +83,12 @@ func run(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	git, err := gitstore.Open(path)
-	if err != nil {
-		return err
-	}
-	// Автокоммит создаётся всегда, но пачка выключена, пока интерфейс не
-	// прочитает настройки: до того безопаснее коммитить каждое сохранение.
-	autocommit := gitstore.NewAutocommit(git, 0, logError)
-	go autocommit.Run(ctx)
-
+	// Репозиторий и пачку коммитов поднимает сам сервис — и только если
+	// история в этом хранилище включена. Выключенная означает обычную папку с
+	// файлами, в которой .git не появляется вовсе.
 	service, err := notes.Open(ctx, path, notes.Options{
-		Origin:     vault.OriginUser,
-		Autocommit: autocommit,
+		Origin:  vault.OriginUser,
+		OnError: logError,
 	})
 	if err != nil {
 		return err
@@ -148,12 +142,15 @@ func registerClosing(instance *application.App, window *application.WebviewWindo
 				logError(errors.New("интерфейс не ответил до закрытия, несохранённое могло пропасть"))
 			}
 			// При включённой пачке здесь лежит всё, что накопилось с последнего
-			// окна; без неё — то, что записалось мимо обычного пути.
+			// окна; без неё — то, что записалось мимо обычного пути. С
+			// выключенной историей коммитить нечего и некуда.
 			if err := service.FlushCommits(context.Background()); err != nil {
 				logError(err)
 			}
-			if _, err := service.Git().Commit(context.Background(), gitstore.NotesMessage(nil)); err != nil {
-				logError(err)
+			if git := service.Git(); git != nil {
+				if _, err := git.Commit(context.Background(), gitstore.NotesMessage(nil)); err != nil {
+					logError(err)
+				}
 			}
 			window.Close()
 		}()

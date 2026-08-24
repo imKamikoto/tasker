@@ -36,7 +36,17 @@ export function Configure(seconds: number): $CancellablePromise<$models.GitSetti
 }
 
 /**
- * Settings возвращает текущее окно.
+ * SetEnabled включает или выключает историю в этом хранилище.
+ * 
+ * Выключение не трогает уже накопленные коммиты: репозиторий остаётся на
+ * диске, приложение просто перестаёт в него писать.
+ */
+export function SetEnabled(enabled: boolean): $CancellablePromise<$models.GitSettings> {
+    return $Call.ByID(1888994842, enabled);
+}
+
+/**
+ * Settings возвращает состояние истории.
  */
 export function Settings(): $CancellablePromise<$models.GitSettings> {
     return $Call.ByID(1449516574);

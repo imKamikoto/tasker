@@ -53,20 +53,24 @@ export function Settings({
   const [vault, setVault] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
   const [onBattery, setOnBattery] = useState(false);
+  // Ведётся ли история. Не в UISettings: это свойство хранилища, а не
+  // интерфейса, и живёт оно в Go рядом с заметками.
+  const [gitEnabled, setGitEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Всё сразу при открытии: экран небольшой, а подгружать разделы по одному
   // значит показывать «…» на каждом переключении.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.stats(), api.paths(), api.build(), api.onBattery()])
-      .then(([gotStats, gotPaths, gotBuild, battery]) => {
+    Promise.all([api.stats(), api.paths(), api.build(), api.onBattery(), api.gitSettings()])
+      .then(([gotStats, gotPaths, gotBuild, battery, git]) => {
         if (cancelled) return;
         setStats(gotStats);
         setPaths(gotPaths);
         setBuild(gotBuild);
         setOnBattery(battery);
         setVault(gotPaths.Vault);
+        setGitEnabled(git.Enabled);
       })
       .catch((err) => !cancelled && setError(describeError(err)));
     return () => {
@@ -130,6 +134,8 @@ export function Settings({
                 stats={stats}
                 onStats={setStats}
                 onVaults={loadVaults}
+                gitEnabled={gitEnabled}
+                onGitEnabled={setGitEnabled}
                 onError={setError}
               />
             )}

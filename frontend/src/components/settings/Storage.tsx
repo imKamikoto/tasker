@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api, describeError, type Stats } from "../../api";
 import { fileSize, noteCount } from "../../format";
 import { limits, type UISettings } from "../../settings";
-import { Card, Fact, PathLine, Row, Slider } from "./controls";
+import { Card, Fact, PathLine, Row, Slider, Toggle } from "./controls";
 
 type Props = {
   settings: UISettings;
@@ -13,12 +13,17 @@ type Props = {
   stats: Stats | null;
   onStats: (stats: Stats) => void;
   onVaults: () => void;
+  /** Ведётся ли история. Живёт в Go рядом с заметками, не в config.json. */
+  gitEnabled: boolean;
+  onGitEnabled: (enabled: boolean) => void;
   onError: (message: string) => void;
 };
 
 export function Storage({
   settings,
   onChange,
+  gitEnabled,
+  onGitEnabled,
   vault,
   recent,
   stats,
@@ -135,34 +140,67 @@ export function Storage({
       </Card>
 
       <Card>
-        <Row
-          label="Окно автокоммита"
-          hint="Через сколько правки уезжают в историю git"
-        >
+        <Row label="История" hint="Версии заметок в git внутри самой папки, без сервера">
           <div className="stack">
-            <Slider
-              value={settings.commitWindow}
-              min={limits.commitWindow.min}
-              max={limits.commitWindow.max}
-              step={limits.commitWindow.step}
-              format={(value) => (value === 0 ? "сразу" : `${value} с`)}
-              onChange={(commitWindow) => onChange({ commitWindow })}
+            <Toggle
+              checked={gitEnabled}
+              label="Вести историю изменений"
+              onChange={(enabled) => {
+                // Ответ идёт в Go: это свойство папки, а не интерфейса, и его
+                // читает ещё и tasker-mcp. Не вышло — возвращаем тумблер, а не
+                // оставляем его показывать несуществующее состояние.
+                onGitEnabled(enabled);
+                api
+                  .setGitEnabled(enabled)
+                  // Включённой истории надо вернуть окно из настроек:
+                  // репозиторий только что открылся и про него не знает.
+                  .then(() => (enabled ? api.configureGit(settings.commitWindow) : undefined))
+                  .catch((err) => {
+                    onGitEnabled(!enabled);
+                    onError(describeError(err));
+                  });
+              }}
             />
             <span className="card__note">
-              {settings.commitWindow === 0
-                ? "Каждое сохранение — отдельный коммит. История подробная, но длинная."
-                : `Правки собираются в один коммит. Файлы всё это время уже на диске: git здесь история, а не хранилище.`}
+              {gitEnabled
+                ? "Каждая правка уезжает в git внутри папки с заметками. Никуда не отправляется: репозиторий локальный."
+                : "Хранилище — просто папка с файлами. Выключение ничего не удаляет: уже накопленные коммиты остаются на месте и вернутся, если включить обратно."}
             </span>
-            {settings.commitWindow > 0 && (
-              <div className="row-actions">
-                <button className="button" onClick={() => void api.commitNow()}>
-                  Закоммитить сейчас
-                </button>
-              </div>
-            )}
           </div>
         </Row>
       </Card>
+
+      {gitEnabled && (
+        <Card>
+          <Row
+            label="Окно автокоммита"
+            hint="Через сколько правки уезжают в историю git"
+          >
+            <div className="stack">
+              <Slider
+                value={settings.commitWindow}
+                min={limits.commitWindow.min}
+                max={limits.commitWindow.max}
+                step={limits.commitWindow.step}
+                format={(value) => (value === 0 ? "сразу" : `${value} с`)}
+                onChange={(commitWindow) => onChange({ commitWindow })}
+              />
+              <span className="card__note">
+                {settings.commitWindow === 0
+                  ? "Каждое сохранение — отдельный коммит. История подробная, но длинная."
+                  : `Правки собираются в один коммит. Файлы всё это время уже на диске: git здесь история, а не хранилище.`}
+              </span>
+              {settings.commitWindow > 0 && (
+                <div className="row-actions">
+                  <button className="button" onClick={() => void api.commitNow()}>
+                    Закоммитить сейчас
+                  </button>
+                </div>
+              )}
+            </div>
+          </Row>
+        </Card>
+      )}
 
       {stats && stats.Trashed > 0 && (
         <p className="section-note">

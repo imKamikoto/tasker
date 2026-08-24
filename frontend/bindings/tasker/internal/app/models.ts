@@ -27,6 +27,12 @@ export interface Build {
  */
 export interface GitSettings {
     /**
+     * Enabled — ведётся ли история вообще. Выключенная означает обычную папку
+     * с файлами: .git не заводится, коммитов нет.
+     */
+    "Enabled": boolean;
+
+    /**
      * WindowSeconds — окно автокоммита. Ноль означает коммит на каждое
      * сохранение.
      */

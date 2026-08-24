@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -37,31 +38,54 @@ type Options struct {
 	// (SPEC §4.2, §4.5).
 	Origin vault.Origin
 
-	// Autocommit собирает правки в пачку вместо коммита на каждое сохранение.
-	// Нулевое значение означает коммит сразу — так работает tasker-mcp: это
-	// разовый процесс, копить ему нечего и некогда.
+	// OnError принимает ошибки фоновой пачки коммитов: она работает сама по
+	// себе, и сообщить о сбое ей больше некому. Ноль означает «молча».
 	//
-	// Пачка включается отдельно, через SetCommitWindow: до того как интерфейс
-	// прочитал настройки, безопаснее коммитить сразу.
-	Autocommit *gitstore.Autocommit
+	// Сам автокоммит создаёт сервис, а не вызывающий: он появляется и исчезает
+	// вместе с репозиторием, а репозиторий здесь включается и выключается на
+	// ходу. Пачка при этом всё равно выключена, пока её не включит
+	// SetCommitWindow: до того как интерфейс прочитал настройки, безопаснее
+	// коммитить сразу — и так же работает tasker-mcp, разовый процесс,
+	// которому копить нечего и некогда.
+	OnError func(error)
 }
 
 // Service — операции над заметками уровня пользователя.
 type Service struct {
 	vault  *vault.Vault
 	index  *index.Index
-	git    *gitstore.Store
 	lock   *vaultLock
 	colors *colorStore
 	origin vault.Origin
 
+	// gitCfg помнит решение о том, вести ли историю; ctx и onError нужны,
+	// чтобы поднять её позже, когда решение поменяют.
+	gitCfg  *gitConfig
+	ctx     context.Context
+	onError func(error)
+
+	// gitMu защищает пару git+auto: они появляются и исчезают вместе, а
+	// переключают их из вебвью, откуда вызовы приходят параллельно.
+	gitMu sync.Mutex
+	// git и auto равны нулю, когда история выключена. Это и есть «просто
+	// папка с файлами»: репозиторий не открыт и не заведён.
+	git  *gitstore.Store
 	auto *gitstore.Autocommit
+	// Чем остановить фоновый цикл пачки и как дождаться, что он встал.
+	// Дожидаться обязательно: цикл пишет в .git, и уйти, не дождавшись, значит
+	// оставить запись, которая идёт уже после того, как всё «закрыто».
+	gitCancel context.CancelFunc
+	gitDone   chan struct{}
 	// batching читается из вызовов вебвью, которые приходят параллельно,
 	// поэтому atomic, а не обычный bool под мьютексом сервиса.
 	batching atomic.Bool
 }
 
-// Open открывает vault, индекс и историю, создавая недостающее.
+// Open открывает vault, индекс и — если её просили — историю, создавая
+// недостающее.
+//
+// ctx живёт дольше вызова: на нём висит фоновый цикл пачки коммитов, поэтому
+// отменять его следует тогда же, когда приложение заканчивает работу.
 func Open(ctx context.Context, root string, opts Options) (*Service, error) {
 	v, err := vault.Open(root)
 	if err != nil {
@@ -73,10 +97,6 @@ func Open(ctx context.Context, root string, opts Options) (*Service, error) {
 		return nil, fmt.Errorf("open notes service: %w", err)
 	}
 
-	git, err := gitstore.Open(v.Root())
-	if err != nil {
-		return nil, err
-	}
 	ix, err := index.Open(ctx, filepath.Join(dir, "index.sqlite"))
 	if err != nil {
 		return nil, err
@@ -86,15 +106,116 @@ func Open(ctx context.Context, root string, opts Options) (*Service, error) {
 	if origin == "" {
 		origin = vault.OriginUser
 	}
-	return &Service{
-		vault:  v,
-		index:  ix,
-		git:    git,
-		lock:   newVaultLock(dir),
-		colors: newColorStore(dir),
-		origin: origin,
-		auto:   opts.Autocommit,
-	}, nil
+	onError := opts.OnError
+	if onError == nil {
+		onError = func(error) {}
+	}
+	s := &Service{
+		vault:   v,
+		index:   ix,
+		lock:    newVaultLock(dir),
+		colors:  newColorStore(dir),
+		origin:  origin,
+		gitCfg:  newGitConfig(v.Root(), dir),
+		ctx:     ctx,
+		onError: onError,
+	}
+	// История поднимается только если её просили. Иначе хранилище остаётся
+	// обычной папкой с файлами, и .git в ней не появляется.
+	if s.gitCfg.enabled() {
+		if err := s.openGit(); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
+}
+
+// GitEnabled отвечает, ведётся ли в хранилище история.
+func (s *Service) GitEnabled() bool {
+	s.gitMu.Lock()
+	defer s.gitMu.Unlock()
+	return s.git != nil
+}
+
+// SetGitEnabled включает или выключает историю.
+//
+// Выключение ничего не удаляет: репозиторий остаётся на диске со всеми
+// коммитами, приложение просто перестаёт в него писать. Удалять чужую историю
+// по щелчку тумблера нельзя ни при каких обстоятельствах — включат обратно, и
+// всё окажется на месте.
+//
+// Перед выключением накопленная пачка уезжает в историю: она уже на диске в
+// виде файлов, но выбросить её из истории значит потерять ровно то, ради чего
+// история включалась.
+func (s *Service) SetGitEnabled(ctx context.Context, enabled bool) error {
+	s.gitMu.Lock()
+	defer s.gitMu.Unlock()
+
+	if enabled == (s.git != nil) {
+		// Запишем решение всё равно: до первого переключения файла нет, и
+		// умолчание выводится из наличия репозитория.
+		return s.gitCfg.set(enabled)
+	}
+
+	if !enabled {
+		if s.auto != nil {
+			if err := s.auto.Flush(ctx); err != nil {
+				return err
+			}
+		}
+		s.closeGitLocked()
+		s.batching.Store(false)
+		return s.gitCfg.set(enabled)
+	}
+
+	if err := s.openGit(); err != nil {
+		return err
+	}
+	return s.gitCfg.set(enabled)
+}
+
+// openGit поднимает репозиторий и пачку коммитов. Зовётся под gitMu.
+//
+// Пачка создаётся здесь, а не вызывающим: она держит ссылку на репозиторий,
+// а он появляется только сейчас — включить историю на ходу иначе было бы
+// нечем. Цикл живёт до отмены ctx, то есть до конца работы приложения.
+func (s *Service) openGit() error {
+	git, err := gitstore.Open(s.vault.Root())
+	if err != nil {
+		return err
+	}
+	auto := gitstore.NewAutocommit(git, 0, s.onError)
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		auto.Run(ctx)
+	}()
+
+	s.git, s.auto = git, auto
+	s.gitCancel, s.gitDone = cancel, done
+	return nil
+}
+
+// closeGitLocked гасит цикл пачки и забывает репозиторий. Зовётся под gitMu.
+//
+// Ждать здесь безопасно: цикл в сервис не заходит, он умеет только коммитить.
+func (s *Service) closeGitLocked() {
+	if s.gitCancel != nil {
+		s.gitCancel()
+		<-s.gitDone
+	}
+	s.git, s.auto = nil, nil
+	s.gitCancel, s.gitDone = nil, nil
+}
+
+// gitParts отдаёт репозиторий и пачку одним снимком: без этого вызывающий
+// прочитал бы их по отдельности и получил бы пару из разных состояний.
+func (s *Service) gitParts() (*gitstore.Store, *gitstore.Autocommit) {
+	s.gitMu.Lock()
+	defer s.gitMu.Unlock()
+	return s.git, s.auto
 }
 
 // SetCommitWindow задаёт, как часто правки уезжают в историю.
@@ -103,38 +224,54 @@ func Open(ctx context.Context, root string, opts Options) (*Service, error) {
 // собираются в пачку с таким окном. Терять при этом нечего: файл уже на диске,
 // git здесь история, а не хранилище (SPEC §2).
 func (s *Service) SetCommitWindow(d time.Duration) {
-	if s.auto == nil {
+	_, auto := s.gitParts()
+	if auto == nil {
 		return
 	}
 	if d <= 0 {
 		s.batching.Store(false)
 		return
 	}
-	s.auto.SetDelay(d)
+	auto.SetDelay(d)
 	s.batching.Store(true)
 }
 
 // CommitWindow возвращает текущее окно. Ноль — коммит сразу.
 func (s *Service) CommitWindow() time.Duration {
-	if s.auto == nil || !s.batching.Load() {
+	_, auto := s.gitParts()
+	if auto == nil || !s.batching.Load() {
 		return 0
 	}
-	return s.auto.Delay()
+	return auto.Delay()
 }
 
 // FlushCommits немедленно фиксирует накопленное. Без пачки делать нечего:
 // всё уже закоммичено.
 func (s *Service) FlushCommits(ctx context.Context) error {
-	if s.auto == nil {
+	_, auto := s.gitParts()
+	if auto == nil {
 		return nil
 	}
-	return s.auto.Flush(ctx)
+	return auto.Flush(ctx)
 }
 
-func (s *Service) Close() error         { return s.index.Close() }
-func (s *Service) Vault() *vault.Vault  { return s.vault }
-func (s *Service) Index() *index.Index  { return s.index }
-func (s *Service) Git() *gitstore.Store { return s.git }
+// Close останавливает фоновый цикл коммитов и закрывает индекс.
+func (s *Service) Close() error {
+	s.gitMu.Lock()
+	s.closeGitLocked()
+	s.gitMu.Unlock()
+	return s.index.Close()
+}
+
+func (s *Service) Vault() *vault.Vault { return s.vault }
+func (s *Service) Index() *index.Index { return s.index }
+
+// Git отдаёт репозиторий. Ноль означает выключенную историю — вызывающий
+// обязан это проверить.
+func (s *Service) Git() *gitstore.Store {
+	git, _ := s.gitParts()
+	return git
+}
 
 // Sync приводит индекс в соответствие с содержимым vault.
 func (s *Service) Sync(ctx context.Context) (index.ScanResult, error) {
@@ -625,12 +762,15 @@ func (s *Service) applyMany(
 		titles = append(titles, result.Title)
 	}
 
-	if len(titles) > 0 {
+	// Пачка идёт одним коммитом, а не двадцатью: иначе перенос двадцати
+	// заметок даёт двадцать коммитов и двадцать захватов блокировки. С
+	// выключенной историей коммита нет вовсе — файлы уже на диске.
+	if git, _ := s.gitParts(); git != nil && len(titles) > 0 {
 		message := gitstore.NotesMessage(titles)
 		if s.origin == vault.OriginAgent {
 			message = gitstore.AgentMessage(action, fmt.Sprintf("%d заметок", len(titles)))
 		}
-		if _, err := s.git.Commit(ctx, message); err != nil {
+		if _, err := git.Commit(ctx, message); err != nil {
 			failed = append(failed, err)
 		}
 	}
@@ -946,11 +1086,18 @@ func (s *Service) reindex(ctx context.Context, n *vault.Note) (index.Record, err
 // commit фиксирует изменения. Текст сообщения зависит от того, кто их внёс
 // (SPEC §4.5).
 func (s *Service) commit(ctx context.Context, action, title string) error {
+	git, auto := s.gitParts()
+	// История выключена — писать некуда. Файл при этом уже на диске: git
+	// здесь история, а не хранилище (SPEC §2), и без него теряется только она.
+	if git == nil {
+		return nil
+	}
+
 	// Пачка включена — правка только отмечается, а коммит сделает цикл.
 	// Агент сюда не попадает: у него свой текст сообщения, который в общей
 	// пачке собрать не из чего, да и живёт он один вызов.
-	if s.auto != nil && s.batching.Load() && s.origin != vault.OriginAgent {
-		s.auto.Touch(title)
+	if auto != nil && s.batching.Load() && s.origin != vault.OriginAgent {
+		auto.Touch(title)
 		return nil
 	}
 
@@ -958,7 +1105,7 @@ func (s *Service) commit(ctx context.Context, action, title string) error {
 	if s.origin == vault.OriginAgent {
 		message = gitstore.AgentMessage(action, title)
 	}
-	_, err := s.git.Commit(ctx, message)
+	_, err := git.Commit(ctx, message)
 	return err
 }
 

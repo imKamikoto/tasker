@@ -28,6 +28,12 @@ func session(t *testing.T) (*mcp.ClientSession, string) {
 		t.Fatalf("newService: %v", err)
 	}
 	t.Cleanup(func() { svc.Close() })
+	// В новой папке истории нет: хранилище — это просто файлы. Сценарий
+	// приёмки из MCP.md §6 проверяет в том числе коммит агента, поэтому
+	// включаем её так же, как это сделал бы человек в настройках.
+	if err := svc.SetGitEnabled(ctx, true); err != nil {
+		t.Fatalf("SetGitEnabled: %v", err)
+	}
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	server := newServer(svc)
