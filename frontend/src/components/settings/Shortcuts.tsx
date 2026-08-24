@@ -116,9 +116,10 @@ export function Shortcuts({ keymap, vimNavigation, onSave, onReset, path, onReve
 
       {!vimNavigation && (
         <p className="section-note">
-          Движения вима (<code>j</code>, <code>k</code>, <code>h</code>, <code>l</code>) сейчас
-          выключены в разделе «Редактор» — привязки ниже остаются в файле, но не срабатывают.
-          Стрелки и <code>⏎</code> работают.
+          Движения вима (<code>j</code>, <code>k</code>, <code>h</code>, <code>l</code>, а также
+          смена колонки на <code>⌃⇧H</code> и <code>⌃⇧L</code>) сейчас выключены в разделе
+          «Редактор» — привязки ниже остаются в файле, но не срабатывают. Стрелки,
+          <code>⌃⇧←</code>, <code>⌃⇧→</code> и <code>⏎</code> работают.
         </p>
       )}
 

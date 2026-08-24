@@ -75,14 +75,15 @@ export function EditorPrefs({ settings, onChange }: Props) {
             />
             <Toggle
               checked={settings.vimNavigation}
-              label="Движения j, k, h, l в списке и сайдбаре"
+              label="Движения j, k, h, l — в списке, сайдбаре и при смене колонки"
               onChange={(vimNavigation) => onChange({ vimNavigation })}
             />
             <span className="card__note">
               Выключенный вим делает редактор обычным текстовым полем: текст печатается сразу,
               режимов и ex-команд <code>:w</code> и <code>:q</code> нет. Движения снимаются
-              отдельно — стрелки, <code>⏎</code> и остальные команды работают в любом случае.
-              Клавиши правятся в разделе «Шоткаты».
+              отдельно и вместе со сменой колонки на <code>⌃⇧H</code> и <code>⌃⇧L</code> — она
+              переезжает на <code>⌃⇧←</code> и <code>⌃⇧→</code>. Стрелки, <code>⏎</code> и
+              остальные команды работают в любом случае. Клавиши правятся в разделе «Шоткаты».
             </span>
           </div>
         </Row>

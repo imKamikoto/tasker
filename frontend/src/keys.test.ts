@@ -163,7 +163,13 @@ test("shift и кириллица вместе", () => {
 // Выключенная вим-навигация снимает буквы, но не стрелки и не мнемоники.
 test("вимовые движения снимаются, остальное остаётся", () => {
   const keymap = {
-    global: { "cmd+n": "note.create" },
+    global: {
+      "cmd+n": "note.create",
+      "ctrl+shift+h": "focus.prev",
+      "ctrl+shift+l": "focus.next",
+      "ctrl+shift+left": "focus.prev",
+      "ctrl+shift+right": "focus.next",
+    },
     sidebar: {
       j: "sidebar.down",
       k: "sidebar.up",
@@ -204,8 +210,13 @@ test("вимовые движения снимаются, остальное о�
     right: "sidebar.expand",
     enter: "sidebar.open",
   });
-  // Глобальный контекст движений не содержит и трогать его незачем.
-  assert.deepEqual(got.global, { "cmd+n": "note.create" });
+  // Смена фокуса — тоже движение вима: H и L выбраны как влево-вправо.
+  // Буквы уходят, стрелки остаются, иначе из колонки было бы не выйти.
+  assert.deepEqual(got.global, {
+    "cmd+n": "note.create",
+    "ctrl+shift+left": "focus.prev",
+    "ctrl+shift+right": "focus.next",
+  });
 });
 
 // Исходную раскладку показывает экран шоткатов — портить её нельзя.
