@@ -21,6 +21,21 @@ import * as index$0 from "../index/models.js";
 // @ts-ignore: Unused imports
 import * as notes$0 from "../notes/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * AddAttachment сохраняет вложение из вебвью.
+ * 
+ * Данные приходят строкой base64, а не массивом байтов: через биндинги массив
+ * на несколько мегабайт едет числами по одному, и вставка скриншота
+ * превращается в мегабайты JSON.
+ */
+export function AddAttachment(filename: string, encoded: string): $CancellablePromise<$models.Attachment> {
+    return $Call.ByID(1954921214, filename, encoded);
+}
+
 /**
  * Counts возвращает счётчики для верхних пунктов сайдбара.
  */

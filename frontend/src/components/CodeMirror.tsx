@@ -34,6 +34,7 @@ import {
   type AlertKind,
   type InlineKind,
 } from "../markup";
+import { imagePreview } from "../images";
 import { linkAt, noteLinkHighlight, visibleNoteLinks } from "../notelinks";
 import type { SelectionRect } from "../toolbar";
 import { continueList } from "../lists";
@@ -53,6 +54,13 @@ type Props = {
   onStatus: (status: EditorStatus) => void;
   /** Открыть заметку по ссылке из текста. */
   onOpenNote: (id: string) => void;
+  /**
+   * Положить файл в хранилище и отдать готовую вставку для текста.
+   *
+   * Возвращает markdown, а не путь: как выглядит вставка — картинкой или
+   * ссылкой — решает Go, потому что он же решает, картинка это или нет.
+   */
+  onAttach: (file: File) => Promise<string>;
   /** Где стоит непустое выделение; null — выделения нет. */
   onSelection: (rect: SelectionRect | null) => void;
   /**
@@ -85,6 +93,12 @@ function indentBlock(shift: boolean) {
     if (!spansLines(ranges)) return false;
     return shift ? indentLess(view) : indentMore(view);
   };
+}
+
+/** filesFrom достаёт файлы из буфера обмена или изброска. */
+function filesFrom(source: DataTransfer | null): File[] {
+  if (!source) return [];
+  return Array.from(source.files);
 }
 
 /** Что умеет плавающий тулбар. */
@@ -141,6 +155,7 @@ export function CodeMirror({
   focusToken,
   onStatus,
   onOpenNote,
+  onAttach,
   onSelection,
   markup,
   vimEnabled,
@@ -152,6 +167,27 @@ export function CodeMirror({
   // Режим держим здесь, а не в state: он меняется на каждое нажатие, и
   // перерисовывать из-за него редактор нельзя.
   const mode = useRef(vimEnabled ? "NORMAL" : "");
+
+  // Файлы кладутся по одному и вставляются подряд: несколько картинок разом —
+  // это несколько строк, а не одна с четырьмя ссылками.
+  const attachAll = async (editor: EditorView, files: File[], at: number) => {
+    let pos = at;
+    for (const file of files) {
+      try {
+        const markdown = await callbacks.current.onAttach(file);
+        const insert = markdown + "\n";
+        editor.dispatch({
+          changes: { from: pos, to: pos, insert },
+          selection: { anchor: pos + insert.length },
+        });
+        pos += insert.length;
+      } catch {
+        // Сообщение показывает Editor: он для этого и передаёт onAttach.
+        return;
+      }
+    }
+    editor.focus();
+  };
 
   // Где стоит выделение на экране. Координаты берутся у начала: тулбар над
   // многострочным выделением всё равно может стоять только в одном месте, и
@@ -184,8 +220,16 @@ export function CodeMirror({
   // Колбэки держим в ref: они меняются на каждом рендере родителя, а редактор
   // пересоздавать из-за этого нельзя. Классическая ловушка устаревшего
   // замыкания, если сложить их прямо в расширения.
-  const callbacks = useRef({ onChange, onWrite, onQuit, onStatus, onOpenNote, onSelection });
-  callbacks.current = { onChange, onWrite, onQuit, onStatus, onOpenNote, onSelection };
+  const callbacks = useRef({
+    onChange,
+    onWrite,
+    onQuit,
+    onStatus,
+    onOpenNote,
+    onSelection,
+    onAttach,
+  });
+  callbacks.current = { onChange, onWrite, onQuit, onStatus, onOpenNote, onSelection, onAttach };
 
   useEffect(() => {
     if (!host.current) return;
@@ -247,12 +291,38 @@ export function CodeMirror({
           taskerTheme,
           checkboxHighlight,
           noteLinkHighlight,
+          imagePreview,
           // Переход по ссылке. Через Cmd, а не обычным щелчком: редактор
           // показывает исходник, и обычный щелчок обязан ставить каретку.
           // Cmd+щелчок в CodeMirror ставит второй курсор — забираем его
           // только над самой ссылкой, во всех прочих местах мультикурсор
           // остаётся (SPEC §8.6).
           EditorView.domEventHandlers({
+            // Вставка из буфера и перетаскивание файла. Оба кладут файл в
+            // хранилище и вставляют разметку на место каретки — путь считает
+            // Go, вебвью только показывает результат.
+            paste(event, view) {
+              const files = filesFrom(event.clipboardData);
+              if (files.length === 0) return false;
+              event.preventDefault();
+              void attachAll(view, files, view.state.selection.main.from);
+              return true;
+            },
+            drop(event, view) {
+              const files = filesFrom(event.dataTransfer);
+              if (files.length === 0) return false;
+              event.preventDefault();
+              // Куда именно бросили, а не где стояла каретка: бросок — это
+              // указание места.
+              const at = view.posAtCoords({ x: event.clientX, y: event.clientY });
+              void attachAll(view, files, at ?? view.state.selection.main.from);
+              return true;
+            },
+            dragover(event) {
+              // Без этого macOS не даёт бросить файл в вебвью вовсе.
+              if (filesFrom(event.dataTransfer).length > 0) event.preventDefault();
+              return false;
+            },
             mousedown(event, view) {
               if (!event.metaKey) return false;
               const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });

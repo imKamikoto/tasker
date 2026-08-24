@@ -191,6 +191,9 @@ func newApplication(
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(tasker.Assets),
+			// Картинки заметок лежат в хранилище, а не в бинарнике: собранный
+			// фронтенд вшит намертво, а вложения появляются во время работы.
+			Middleware: app.VaultAssets(service.Vault()),
 		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,

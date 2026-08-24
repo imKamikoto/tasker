@@ -19,6 +19,7 @@ export {
 };
 
 export type {
+    Attachment,
     Build,
     GitSettings,
     Paths

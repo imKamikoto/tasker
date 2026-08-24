@@ -9,6 +9,27 @@ import type { SelectionRect } from "../toolbar";
 import { ConflictModal } from "./ConflictModal";
 import { TagField } from "./TagField";
 
+/**
+ * base64 читает файл в строку для передачи в Go.
+ *
+ * Через FileReader и data-URI, а не побайтово: btoa над длинной строкой из
+ * arrayBuffer на нескольких мегабайтах заметно подвешивает вкладку, а
+ * readAsDataURL делает ту же работу в браузере.
+ */
+function base64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("не прочитался файл"));
+    reader.onload = () => {
+      const result = String(reader.result);
+      // data:<тип>;base64,<данные> — нужна только вторая половина.
+      const comma = result.indexOf(",");
+      resolve(comma < 0 ? "" : result.slice(comma + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /** Шоткаты статусов в меню. Индекс совпадает с порядком в statuses. */
 const statusKeys = ["⌘⌃1", "⌘⌃2", "⌘⌃3", "⌘⌃4", "⌘⌃5"];
 
@@ -81,6 +102,19 @@ export function Editor({
   const [backlinksOpen, setBacklinksOpen] = useState(false);
   // Плавающий тулбар: где стоит выделение и какую разметку просили применить.
   const pane = useRef<HTMLDivElement | null>(null);
+
+  // Файл едет в Go строкой base64: массив байтов через биндинги превращается
+  // в числа по одному. Разметку собирает тоже Go — он же решает, картинка это
+  // или обычное вложение.
+  const attach = async (file: File): Promise<string> => {
+    try {
+      const saved = await api.addAttachment(file.name, await base64(file));
+      return saved.Markdown;
+    } catch (err) {
+      setError(describeError(err));
+      throw err;
+    }
+  };
   const [selection, setSelection] = useState<SelectionRect | null>(null);
   const [markup, setMarkup] = useState<{ kind: MarkupKind | ""; token: number }>({
     kind: "",
@@ -291,6 +325,7 @@ export function Editor({
           }}
           vimEnabled={vimEnabled}
           onOpenNote={onOpenNote}
+          onAttach={attach}
           onSelection={setSelection}
           markup={markup}
           lineNumbers={lineNumbers}

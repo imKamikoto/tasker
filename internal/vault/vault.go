@@ -347,6 +347,24 @@ func (v *Vault) checkAncestor(dir, notebook string) error {
 	}
 }
 
+// Inside разрешает путь внутри vault и возвращает абсолютный.
+//
+// Экспортирована ради вложений: их отдаёт вебвью раздатчик ассетов, путь
+// приходит из markdown, то есть из файла, который человек мог поправить чем
+// угодно. Правило проверки одно на весь пакет — не выходить за пределы и не
+// лезть в скрытые каталоги (.git, .tasker), — и второй его копии в другом
+// пакете быть не должно.
+func (v *Vault) Inside(path string) (string, error) {
+	clean, err := v.cleanRelative(path)
+	if err != nil {
+		return "", err
+	}
+	if clean == "" {
+		return "", fmt.Errorf("resolve %q: %w", path, ErrOutsideVault)
+	}
+	return v.resolveExisting(clean)
+}
+
 // cleanRelative приводит путь к относительному внутри vault и отвергает всё,
 // что выходит наружу или ведёт в скрытый каталог.
 func (v *Vault) cleanRelative(path string) (string, error) {

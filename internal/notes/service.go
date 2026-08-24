@@ -933,6 +933,23 @@ func (s *Service) DeleteTag(ctx context.Context, name string) ([]index.Record, e
 	return updated, nil
 }
 
+// AddAttachment сохраняет вложение и отдаёт то, что вставить в текст.
+//
+// Отдельной операцией, а не частью сохранения заметки: файл кладётся сразу, а
+// текст со ссылкой на него уезжает на диск обычным путём, когда редактор
+// решит сохраниться. Своего коммита здесь нет — вложение попадёт в ближайший
+// вместе с заметкой, которая на него ссылается, и это правильный порядок:
+// коммит с картинкой, но без текста, объяснить потом нечем.
+func (s *Service) AddAttachment(ctx context.Context, filename string, data []byte) (vault.Attachment, error) {
+	release, err := s.lock.acquire(ctx)
+	if err != nil {
+		return vault.Attachment{}, err
+	}
+	defer release()
+
+	return s.vault.SaveAttachment(filename, data)
+}
+
 // Note — заметка целиком: строка индекса, тело и связи.
 type Note struct {
 	index.Record

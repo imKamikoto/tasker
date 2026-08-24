@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 
 	"tasker/internal/index"
 	"tasker/internal/notes"
@@ -148,6 +150,34 @@ func (n *Notes) Delete(ctx context.Context, id string) error {
 // RenameTag переименовывает тег во всех заметках одним коммитом (SPEC §8.2).
 func (n *Notes) RenameTag(ctx context.Context, from, to string) ([]index.Record, error) {
 	return n.service.RenameTag(ctx, from, to)
+}
+
+// Attachment — сохранённое вложение и готовая вставка для текста.
+type Attachment struct {
+	Path     string
+	Image    bool
+	Markdown string
+}
+
+// AddAttachment сохраняет вложение из вебвью.
+//
+// Данные приходят строкой base64, а не массивом байтов: через биндинги массив
+// на несколько мегабайт едет числами по одному, и вставка скриншота
+// превращается в мегабайты JSON.
+func (n *Notes) AddAttachment(ctx context.Context, filename, encoded string) (Attachment, error) {
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return Attachment{}, fmt.Errorf("attachment %q: %w", filename, err)
+	}
+	saved, err := n.service.AddAttachment(ctx, filename, data)
+	if err != nil {
+		return Attachment{}, err
+	}
+	return Attachment{
+		Path:     saved.Path,
+		Image:    saved.Image,
+		Markdown: vault.AttachmentMarkdown(saved, ""),
+	}, nil
 }
 
 // DeleteTag убирает тег из всех заметок одним коммитом, вместе с корзиной.

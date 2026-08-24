@@ -1080,6 +1080,30 @@ button.row__label {
   font: calc(12px * var(--ui-scale))/1 var(--font-ui);
 }
 
+/* Картинка под строкой, в которой она упомянута. Не вместо разметки: это
+   редактор исходника, и прятать то, что человек правит, нельзя. Потолок по
+   высоте обязателен — снимок экрана в полный рост выталкивает текст из окна
+   и превращает заметку в галерею. */
+.cm-image {
+  padding: 6px 0 2px;
+}
+
+.cm-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.cm-image--broken {
+  padding: 6px 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  color: var(--color-fg-dim);
+  font: calc(11px * var(--ui-scale))/1.4 var(--font-mono);
+}
+
 /* Плавающий тулбар разметки. Абсолютно внутри колонки редактора, а не fixed
    в окне: у колонки backdrop-filter, а он создаёт содержащий блок для
    позиционированных потомков — fixed отсчитывался бы от неё же, только молча.

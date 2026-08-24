@@ -33,6 +33,9 @@ export const api = {
   setTags: (id: string, tags: string[]) => Notes.SetTags(id, tags),
   renameTag: (from: string, to: string) => Notes.RenameTag(from, to),
   deleteTag: (name: string) => Notes.DeleteTag(name),
+  // Вложение едет строкой base64: массив байтов через биндинги превращается в
+  // числа по одному, и вставка скриншота стоила бы мегабайтов JSON.
+  addAttachment: (filename: string, base64: string) => Notes.AddAttachment(filename, base64),
   setTagColor: (name: string, color: number) => Notes.SetTagColor(name, color),
   duplicate: (id: string) => Notes.Duplicate(id),
   move: (id: string, notebook: string) => Notes.Move(id, notebook),
