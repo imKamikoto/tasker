@@ -4,6 +4,7 @@ import type { Note } from "../api";
 import { noteCount, shortDate } from "../format";
 import { progressBar } from "../progress";
 import { splitQuery } from "../querytokens";
+import type { RampState } from "../focus";
 import { FocusRamp } from "./FocusRamp";
 import type { SortField } from "../settings";
 import { statusGlyphs, type Status } from "../statuses";
@@ -34,8 +35,8 @@ type Props = {
   onCreate: () => void;
   /** Как называется текущая выборка: ноутбук, тег, «Активные». */
   scope: string;
-  /** Колонка держит фокус и окно активно — для индикатора в титульной строке. */
-  rampActive: boolean;
+  /** Что показать в полосе колонки: рампу, точки или ничего. */
+  ramp: RampState;
   /** Что показать вместо строк, когда их нет: пустой vault или пустая выдача. */
   empty: React.ReactNode;
   /** Прижатое к низу колонки: панель массовых операций, когда она нужна. */
@@ -83,7 +84,7 @@ export function NoteList({
   onSort,
   onCreate,
   scope,
-  rampActive,
+  ramp,
   empty,
   footer,
   agentBadge,
@@ -128,7 +129,7 @@ export function NoteList({
       {/* Со свёрнутым сайдбаром эта полоса становится самой левой, и место
           под системный светофор надо оставлять уже ей. */}
       <div className="drag-strip drag-strip--tools" data-lights={sidebarHidden}>
-        <FocusRamp kind="list" active={rampActive} />
+        <FocusRamp kind="list" state={ramp} />
         <button
           className="stripbutton"
           aria-label={sidebarHidden ? "Показать сайдбар" : "Скрыть сайдбар"}

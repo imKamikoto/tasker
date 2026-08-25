@@ -4,6 +4,7 @@ import { api, describeError, events, subscribe, type Note, type NoteRecord } fro
 import { backlinkCount } from "../format";
 import { statusGlyphs, statuses, type Status } from "../statuses";
 import { CodeMirror, type EditorStatus, type MarkupKind } from "./CodeMirror";
+import type { RampState } from "../focus";
 import { FocusRamp } from "./FocusRamp";
 import { MarkupToolbar } from "./MarkupToolbar";
 import type { SelectionRect } from "../toolbar";
@@ -56,8 +57,8 @@ type Props = {
   /** Сколько ждать после последней правки перед записью, мс. */
   saveDelay: number;
   vimEnabled: boolean;
-  /** Колонка держит фокус и окно активно — для индикатора в титульной строке. */
-  rampActive: boolean;
+  /** Что показать в полосе колонки: рампу, точки или ничего. */
+  ramp: RampState;
   /** Открыть другую заметку: по ссылке из текста или из списка обратных. */
   onOpenNote: (id: string) => void;
   lineNumbers: boolean;
@@ -92,7 +93,7 @@ export function Editor({
   onKeepMine,
   saveDelay,
   vimEnabled,
-  rampActive,
+  ramp,
   onOpenNote,
   lineNumbers,
   lineWrap,
@@ -216,7 +217,7 @@ export function Editor({
   return (
     <div className="pane pane--editor" data-focused={focused} ref={pane}>
       <div className="drag-strip">
-        <FocusRamp kind="editor" active={rampActive} />
+        <FocusRamp kind="editor" state={ramp} />
       </div>
 
       <input

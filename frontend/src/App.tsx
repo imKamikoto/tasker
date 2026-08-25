@@ -24,7 +24,7 @@ import { NoteMenu } from "./components/NoteMenu";
 import { Settings } from "./components/Settings";
 import { Sidebar, type Filter } from "./components/Sidebar";
 import { Splitter } from "./components/Splitter";
-import { focusCommands, movePane, stealsFromEditor, type Pane } from "./focus";
+import { focusCommands, movePane, rampState, stealsFromEditor, type Pane } from "./focus";
 import { combination, resolveCommand, withoutVimMotions, type Keymap } from "./keys";
 import { scopeLabel } from "./scope";
 import { applyClick } from "./selection";
@@ -142,6 +142,10 @@ export default function App() {
   const [windowActive, setWindowActive] = useState(true);
 
   const rowHeight = Math.round(baseRowHeight * settings.textScale);
+
+  // Что показать в полосе колонки. Правило целиком в focus.ts: индикатор
+  // существует ради ⌃⇧H и ⌃⇧L, и с выключенными движениями вима его нет.
+  const ramp = (kind: Pane) => rampState(kind, pane, windowActive, settings.vimNavigation);
 
   // Запрос собирается здесь, а не в Go, только потому что это склейка строки из
   // того, что человек уже выбрал. Разбирает и исполняет его всё равно Go.
@@ -691,7 +695,7 @@ export default function App() {
         filter={filter}
         onFilter={onFilter}
         collapsed={settings.collapsed}
-        rampActive={windowActive && pane === "sidebar"}
+        ramp={ramp("sidebar")}
         topOrder={settings.topOrder}
         topHidden={settings.topHidden}
         notebooksCollapsed={settings.notebooksCollapsed}
@@ -780,7 +784,7 @@ export default function App() {
           setSettings((current) => ({ ...current, sortField, sortReversed }))
         }
         scope={scopeLabel(filter)}
-        rampActive={windowActive && pane === "list"}
+        ramp={ramp("list")}
         onCreate={createNote}
         agentBadge={settings.agentBadge}
         rowHeight={rowHeight}
@@ -837,7 +841,7 @@ export default function App() {
       {noteError && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
           <div className="drag-strip">
-            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+            <FocusRamp kind="editor" state={ramp("editor")} />
           </div>
           <div className="error">{noteError}</div>
         </div>
@@ -845,7 +849,7 @@ export default function App() {
       {!noteError && !note && selected.length <= 1 && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
           <div className="drag-strip">
-            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+            <FocusRamp kind="editor" state={ramp("editor")} />
           </div>
           <div className="empty">
             <div className="empty__text">Выберите заметку слева</div>
@@ -862,7 +866,7 @@ export default function App() {
       {selected.length > 1 && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
           <div className="drag-strip">
-            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+            <FocusRamp kind="editor" state={ramp("editor")} />
           </div>
           <div className="empty">
             <div className="empty__title">Выбрано заметок: {selected.length}</div>
@@ -875,7 +879,7 @@ export default function App() {
       {!noteError && note && filter.kind === "trash" && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
           <div className="drag-strip">
-            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+            <FocusRamp kind="editor" state={ramp("editor")} />
           </div>
           <input className="editor__title" value={note.Title} readOnly />
           <div className="banner">
@@ -919,7 +923,7 @@ export default function App() {
           onMode={(mode) => (vimMode.current = mode)}
           saveDelay={settings.saveDelay}
           vimEnabled={settings.vim}
-          rampActive={windowActive && pane === "editor"}
+          ramp={ramp("editor")}
           onOpenNote={openNote}
           lineNumbers={settings.lineNumbers}
           lineWrap={settings.lineWrap}

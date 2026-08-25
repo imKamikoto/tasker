@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Counts, Notebook, Tag } from "../api";
 import { tagColor, tagStyle } from "../tags";
 import { notebookRows } from "../tree";
+import type { RampState } from "../focus";
 import { FocusRamp } from "./FocusRamp";
 import { topAccented, topGlyphs, topLabels, topRows, type TopKind } from "../toprows";
 import { NameInput } from "./NameInput";
@@ -36,8 +37,8 @@ type Props = {
   collapsed: string[];
   /** Секции сайдбара, свёрнутые целиком. */
   /** Порядок и видимость верхних пунктов — из настроек. */
-  /** Колонка держит фокус и окно активно — для индикатора в титульной строке. */
-  rampActive: boolean;
+  /** Что показать в полосе колонки: рампу, точки или ничего. */
+  ramp: RampState;
   topOrder: string[];
   topHidden: string[];
   notebooksCollapsed: boolean;
@@ -84,7 +85,7 @@ export function Sidebar({
   filter,
   onFilter,
   collapsed,
-  rampActive,
+  ramp,
   topOrder,
   topHidden,
   notebooksCollapsed,
@@ -205,7 +206,7 @@ export function Sidebar({
       {/* В полосе остались только светофор и рампа: кликабельного здесь быть
           не должно — это зона перетаскивания окна. */}
       <div className="drag-strip drag-strip--sidebar">
-        <FocusRamp kind="sidebar" active={rampActive} />
+        <FocusRamp kind="sidebar" state={ramp} />
       </div>
 
       {/* Порядок и видимость правит человек в настройках; правила «чего не

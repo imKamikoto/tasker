@@ -94,11 +94,36 @@ export const focusRamps: Record<Pane, string> = {
 export const idleRamp = "···············";
 
 /**
+ * Что показывает полоса колонки.
+ *
+ * `hidden` — не «пустая», а «её нет»: с выключенными движениями вима колонки
+ * не переключаются вслепую, и отвечать на вопрос «где я» нечему.
+ */
+export type RampState = "active" | "idle" | "hidden";
+
+/**
  * rampFor отдаёт то, что нарисовать в полосе колонки.
  *
  * Неактивное окно показывает точки во всех трёх колонках: подсвеченная
  * колонка в неактивном окне обещает клавиатурный фокус, которого там нет.
  */
-export function rampFor(kind: Pane, active: boolean): string {
-  return active ? focusRamps[kind] : idleRamp;
+export function rampFor(kind: Pane, state: RampState): string {
+  return state === "active" ? focusRamps[kind] : idleRamp;
+}
+
+/**
+ * rampState решает, что показать колонке.
+ *
+ * Индикатор существует ради слепого переключения по ⌃⇧H и ⌃⇧L. Движения вима
+ * выключены — переключения нет, и полоса пропадает целиком: показывать точки
+ * значило бы намекать на механику, которой в этом режиме не существует.
+ */
+export function rampState(
+  kind: Pane,
+  focused: Pane,
+  windowActive: boolean,
+  vimNavigation: boolean,
+): RampState {
+  if (!vimNavigation) return "hidden";
+  return windowActive && focused === kind ? "active" : "idle";
 }

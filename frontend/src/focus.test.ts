@@ -8,6 +8,7 @@ import {
   movePane,
   panes,
   rampFor,
+  rampState,
   stealsFromEditor,
   type Pane,
 } from "./focus.ts";
@@ -118,7 +119,30 @@ test("рампа симметрична: градиент сходится к ц
 });
 
 test("у каждой колонки своя рампа, у неактивной — точки", () => {
-  assert.equal(rampFor("list", true), focusRamps.list);
-  assert.equal(rampFor("list", false), idleRamp);
+  assert.equal(rampFor("list", "active"), focusRamps.list);
+  assert.equal(rampFor("list", "idle"), idleRamp);
   assert.equal([...idleRamp].length, 15);
+});
+
+test("фокус в колонке — рампа, в соседних — точки", () => {
+  assert.equal(rampState("list", "list", true, true), "active");
+  assert.equal(rampState("sidebar", "list", true, true), "idle");
+});
+
+// Подсвеченная колонка в неактивном окне обещала бы клавиатурный фокус,
+// которого у окна сейчас нет.
+test("неактивное окно гасит все три колонки", () => {
+  for (const kind of panes) {
+    assert.equal(rampState(kind, "list", false, true), "idle");
+  }
+});
+
+// Индикатор существует ради слепого переключения по ⌃⇧H и ⌃⇧L. Движений нет —
+// переключения нет, и точки намекали бы на механику, которой в этом режиме
+// не существует.
+test("без движений вима полосы нет вовсе, а не пустая", () => {
+  for (const kind of panes) {
+    assert.equal(rampState(kind, kind, true, false), "hidden");
+    assert.equal(rampState(kind, "list", false, false), "hidden");
+  }
 });
