@@ -32,6 +32,11 @@
      она собирается в решётку. */
   --color-border-soft: hsl(0 0% 100% / 0.07);
 
+  /* Неактивная рампа индикатора фокуса (FOCUS-STRIP.md). Своей переменной, а
+     не через --color-border: совпадение значений здесь случайное, а менять
+     границы и индикатор придётся порознь. */
+  --color-ramp-idle: hsl(0 0% 100% / 0.1);
+
   --hsl-status-active: 150 30% 55%;
   --hsl-status-hold: 44 55% 58%;
   --hsl-danger: 9 55% 60%;
@@ -61,6 +66,7 @@
 
   --color-border: hsl(0 0% 0% / 0.12);
   --color-border-soft: hsl(0 0% 0% / 0.08);
+  --color-ramp-idle: hsl(0 0% 0% / 0.12);
 
   --hsl-status-active: 150 40% 28%;
   --hsl-status-hold: 38 70% 32%;
@@ -88,6 +94,7 @@
 
     --color-border: hsl(0 0% 0% / 0.12);
     --color-border-soft: hsl(0 0% 0% / 0.08);
+    --color-ramp-idle: hsl(0 0% 0% / 0.12);
 
     --hsl-status-active: 150 40% 28%;
     --hsl-status-hold: 38 70% 32%;

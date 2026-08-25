@@ -14,6 +14,7 @@ import {
   type Template,
 } from "./api";
 import { BulkPane } from "./components/BulkPane";
+import { FocusRamp } from "./components/FocusRamp";
 import { Editor } from "./components/Editor";
 import { EmptySearch, EmptyVault } from "./components/EmptyState";
 import { MovePicker } from "./components/MovePicker";
@@ -136,6 +137,9 @@ export default function App() {
   const [prefs, setPrefs] = useState(false);
   // Машина на батарее: от этого зависит, действует ли прозрачность.
   const [onBattery, setOnBattery] = useState(false);
+  // Активно ли окно. В неактивном все три колонки показывают точки: подсветка
+  // обещала бы клавиатурный фокус, которого у окна сейчас нет (FOCUS-STRIP.md).
+  const [windowActive, setWindowActive] = useState(true);
 
   const rowHeight = Math.round(baseRowHeight * settings.textScale);
 
@@ -398,6 +402,17 @@ export default function App() {
         ? { ...current, Path: saved.Path, Title: saved.Title }
         : current,
     );
+  }, []);
+
+  useEffect(() => {
+    const activate = () => setWindowActive(true);
+    const deactivate = () => setWindowActive(false);
+    window.addEventListener("focus", activate);
+    window.addEventListener("blur", deactivate);
+    return () => {
+      window.removeEventListener("focus", activate);
+      window.removeEventListener("blur", deactivate);
+    };
   }, []);
 
   // Клавиатура. Слушаем окно, а не список: сочетание может прийти откуда
@@ -676,6 +691,7 @@ export default function App() {
         filter={filter}
         onFilter={onFilter}
         collapsed={settings.collapsed}
+        rampActive={windowActive && pane === "sidebar"}
         topOrder={settings.topOrder}
         topHidden={settings.topHidden}
         notebooksCollapsed={settings.notebooksCollapsed}
@@ -764,6 +780,7 @@ export default function App() {
           setSettings((current) => ({ ...current, sortField, sortReversed }))
         }
         scope={scopeLabel(filter)}
+        rampActive={windowActive && pane === "list"}
         onCreate={createNote}
         agentBadge={settings.agentBadge}
         rowHeight={rowHeight}
@@ -772,8 +789,6 @@ export default function App() {
         onToggleSidebar={() =>
           setSettings((current) => ({ ...current, sidebarHidden: !current.sidebarHidden }))
         }
-        settingsOpen={prefs}
-        onSettings={() => setPrefs(true)}
         empty={
           // Пустой vault и пустая выдача — разные состояния: в первом надо
           // предложить завести первую заметку, во втором — объяснить запрос.
@@ -821,13 +836,17 @@ export default function App() {
 
       {noteError && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
-          <div className="drag-strip" />
+          <div className="drag-strip">
+            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+          </div>
           <div className="error">{noteError}</div>
         </div>
       )}
       {!noteError && !note && selected.length <= 1 && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
-          <div className="drag-strip" />
+          <div className="drag-strip">
+            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+          </div>
           <div className="empty">
             <div className="empty__text">Выберите заметку слева</div>
             <div className="empty__keys">
@@ -842,7 +861,9 @@ export default function App() {
       )}
       {selected.length > 1 && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
-          <div className="drag-strip" />
+          <div className="drag-strip">
+            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+          </div>
           <div className="empty">
             <div className="empty__title">Выбрано заметок: {selected.length}</div>
             <div className="empty__text">
@@ -853,7 +874,9 @@ export default function App() {
       )}
       {!noteError && note && filter.kind === "trash" && (
         <div className="pane pane--editor" data-focused={pane === "editor"}>
-          <div className="drag-strip" />
+          <div className="drag-strip">
+            <FocusRamp kind="editor" active={windowActive && pane === "editor"} />
+          </div>
           <input className="editor__title" value={note.Title} readOnly />
           <div className="banner">
             <span className="banner__glyph">▚</span>
@@ -896,6 +919,7 @@ export default function App() {
           onMode={(mode) => (vimMode.current = mode)}
           saveDelay={settings.saveDelay}
           vimEnabled={settings.vim}
+          rampActive={windowActive && pane === "editor"}
           onOpenNote={openNote}
           lineNumbers={settings.lineNumbers}
           lineWrap={settings.lineWrap}

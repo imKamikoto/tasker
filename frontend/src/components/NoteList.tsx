@@ -4,6 +4,7 @@ import type { Note } from "../api";
 import { noteCount, shortDate } from "../format";
 import { progressBar } from "../progress";
 import { splitQuery } from "../querytokens";
+import { FocusRamp } from "./FocusRamp";
 import type { SortField } from "../settings";
 import { statusGlyphs, type Status } from "../statuses";
 import { tagColor, tagStyle } from "../tags";
@@ -33,6 +34,8 @@ type Props = {
   onCreate: () => void;
   /** Как называется текущая выборка: ноутбук, тег, «Активные». */
   scope: string;
+  /** Колонка держит фокус и окно активно — для индикатора в титульной строке. */
+  rampActive: boolean;
   /** Что показать вместо строк, когда их нет: пустой vault или пустая выдача. */
   empty: React.ReactNode;
   /** Прижатое к низу колонки: панель массовых операций, когда она нужна. */
@@ -49,8 +52,6 @@ type Props = {
   onToggleSidebar: () => void;
   /** Шестерёнка живёт здесь, только пока сайдбара нет: со своей полосой он
    *  уносит её с собой, а настройки должны оставаться под рукой. */
-  settingsOpen: boolean;
-  onSettings: () => void;
 };
 
 /** Подписи сортировок. Порядок — как в SPEC §8.4. */
@@ -82,6 +83,7 @@ export function NoteList({
   onSort,
   onCreate,
   scope,
+  rampActive,
   empty,
   footer,
   agentBadge,
@@ -89,8 +91,6 @@ export function NoteList({
   focused,
   sidebarHidden,
   onToggleSidebar,
-  settingsOpen,
-  onSettings,
 }: Props) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -128,6 +128,7 @@ export function NoteList({
       {/* Со свёрнутым сайдбаром эта полоса становится самой левой, и место
           под системный светофор надо оставлять уже ей. */}
       <div className="drag-strip drag-strip--tools" data-lights={sidebarHidden}>
+        <FocusRamp kind="list" active={rampActive} />
         <button
           className="stripbutton"
           aria-label={sidebarHidden ? "Показать сайдбар" : "Скрыть сайдбар"}
@@ -137,17 +138,6 @@ export function NoteList({
         >
           {sidebarHidden ? "⇥" : "⇤"}
         </button>
-        {sidebarHidden && (
-          <button
-            className="gear"
-            aria-label="Настройки"
-            aria-expanded={settingsOpen}
-            title="Настройки (⌘,)"
-            onClick={onSettings}
-          >
-            {"\u2699\uFE0E"}
-          </button>
-        )}
       </div>
 
       <div className="listbar">

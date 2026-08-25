@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { focusCommands, movePane, panes, stealsFromEditor, type Pane } from "./focus.ts";
+import {
+  focusCommands,
+  focusRamps,
+  idleRamp,
+  movePane,
+  panes,
+  rampFor,
+  stealsFromEditor,
+  type Pane,
+} from "./focus.ts";
 
 test("порядок колонок совпадает с порядком на экране", () => {
   assert.deepEqual([...panes], ["sidebar", "list", "editor"]);
@@ -92,4 +101,24 @@ test("без вима Ctrl-сочетания остаются редактор�
   // Смена фокуса не на территории редактора и работает по-прежнему.
   assert.equal(stealsFromEditor("ctrl+shift+h", ""), true);
   assert.equal(stealsFromEditor("cmd+n", ""), true);
+});
+
+// Длины из FOCUS-STRIP.md: 11 у сайдбара, 17 у списка, 23 у редактора.
+test("длина рампы соответствует колонке", () => {
+  assert.equal([...focusRamps.sidebar].length, 11);
+  assert.equal([...focusRamps.list].length, 17);
+  assert.equal([...focusRamps.editor].length, 23);
+});
+
+test("рампа симметрична: градиент сходится к центру с обеих сторон", () => {
+  for (const kind of panes) {
+    const chars = [...focusRamps[kind]];
+    assert.deepEqual(chars, [...chars].reverse(), `рампа ${kind} несимметрична`);
+  }
+});
+
+test("у каждой колонки своя рампа, у неактивной — точки", () => {
+  assert.equal(rampFor("list", true), focusRamps.list);
+  assert.equal(rampFor("list", false), idleRamp);
+  assert.equal([...idleRamp].length, 15);
 });

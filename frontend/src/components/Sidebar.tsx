@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Counts, Notebook, Tag } from "../api";
 import { tagColor, tagStyle } from "../tags";
 import { notebookRows } from "../tree";
+import { FocusRamp } from "./FocusRamp";
 import { topAccented, topGlyphs, topLabels, topRows, type TopKind } from "../toprows";
 import { NameInput } from "./NameInput";
 
@@ -35,6 +36,8 @@ type Props = {
   collapsed: string[];
   /** Секции сайдбара, свёрнутые целиком. */
   /** Порядок и видимость верхних пунктов — из настроек. */
+  /** Колонка держит фокус и окно активно — для индикатора в титульной строке. */
+  rampActive: boolean;
   topOrder: string[];
   topHidden: string[];
   notebooksCollapsed: boolean;
@@ -81,6 +84,7 @@ export function Sidebar({
   filter,
   onFilter,
   collapsed,
+  rampActive,
   topOrder,
   topHidden,
   notebooksCollapsed,
@@ -198,16 +202,10 @@ export function Sidebar({
       {/* Шестерёнка стоит на одном уровне со светофором: это верхняя полоса
           окна, и другого места «над всем» в интерфейсе нет. Полоса тянет окно,
           поэтому кнопка отменяет перетаскивание у себя. */}
+      {/* В полосе остались только светофор и рампа: кликабельного здесь быть
+          не должно — это зона перетаскивания окна. */}
       <div className="drag-strip drag-strip--sidebar">
-        <button
-          className="gear"
-          aria-label="Настройки"
-          aria-expanded={settingsOpen}
-          title="Настройки (⌘,)"
-          onClick={onSettings}
-        >
-          {"\u2699\uFE0E"}
-        </button>
+        <FocusRamp kind="sidebar" active={rampActive} />
       </div>
 
       {/* Порядок и видимость правит человек в настройках; правила «чего не
@@ -502,6 +500,17 @@ export function Sidebar({
           <span className="row__glyph">▚</span>
           <span className="row__label">Корзина</span>
           <span className="row__count">{counts.Trashed || ""}</span>
+        </button>
+        {/* Настройки строкой под корзиной, а не иконкой в титульной строке:
+            наверху теперь рампа, а сама полоса — зона перетаскивания окна. */}
+        <button
+          className="row row--top"
+          aria-expanded={settingsOpen}
+          title="Настройки (⌘,)"
+          onClick={onSettings}
+        >
+          <span className="row__glyph">{"\u2699\uFE0E"}</span>
+          <span className="row__label">Настройки</span>
         </button>
       </div>
     </nav>

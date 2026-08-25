@@ -113,26 +113,84 @@ body {
   --wails-draggable: drag;
 }
 
-/* Какая колонка принимает клавиши.
-   Полоской по верхней кромке, а не рамкой вокруг: рамка занимает пиксели и
-   дёргает раскладку на каждом переключении, а колонки переключают вслепую
-   (⌃⇧← и ⌃⇧→), и ответ «где я сейчас» должен читаться с одного взгляда.
-   Раньше фокус был виден только по подсветке выделенной строки — то есть
-   после того, как по колонке уже поитерировали. */
-.drag-strip::after {
-  content: "";
+/* Индикатор фокуса колонки — блочная ASCII-рампа (docs/design_handoff_tasker/
+   FOCUS-STRIP.md). Верхние 11px полосы перетаскивания, высоты у содержимого не
+   отнимает. Рампа центрируется по своей колонке и обрезается по её краям:
+   в узком сайдбаре она не должна выезжать к соседям. */
+.ramp {
   position: absolute;
   top: 0;
   right: 0;
   left: 0;
-  height: 2px;
-  background: var(--color-accent);
-  opacity: 0;
-  transition: opacity 120ms ease;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: 11px;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.pane[data-focused="true"] > .drag-strip::after {
-  opacity: 1;
+.ramp__marks {
+  /* Блочный, а не строчный: маска заливки считается от бокса элемента, а у
+     инлайна он фрагментируется, и маска молча не применяется. */
+  display: inline-block;
+  font: 11px/11px var(--font-mono);
+  letter-spacing: 2px;
+  color: var(--color-ramp-idle);
+  white-space: nowrap;
+}
+
+.ramp__marks[data-active="true"] {
+  letter-spacing: 1px;
+  color: var(--color-accent);
+
+  /* Заливка от концов к центру. Двумя масками, а не анимацией градиентных
+     стопов: стопы без @property не интерполируются, а mask-size — обычное
+     анимируемое свойство и работает в вебвью любой версии.
+
+     Спека рампы просит обходиться без анимации: на такой мелкой графике
+     плавный переход читается как подтормаживание. Поэтому она короткая —
+     180 мс с ease-out; убрать её целиком можно, удалив это правило. */
+  -webkit-mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+  -webkit-mask-position:
+    left center,
+    right center;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+  mask-position:
+    left center,
+    right center;
+  mask-repeat: no-repeat, no-repeat;
+  animation: ramp-fill 180ms ease-out both;
+}
+
+/* Префиксы обязательны: вебвью здесь — это Safari, и маски он до сих пор
+   надёжно понимает только с -webkit-. Без них правило молча не применяется,
+   и заливка не анимируется вовсе — проверено скриншотом. */
+@keyframes ramp-fill {
+  from {
+    -webkit-mask-size:
+      0% 100%,
+      0% 100%;
+    mask-size:
+      0% 100%,
+      0% 100%;
+  }
+  to {
+    -webkit-mask-size:
+      50% 100%,
+      50% 100%;
+    mask-size:
+      50% 100%,
+      50% 100%;
+  }
+}
+
+/* Тем, кто просил систему не анимировать, — мгновенно, как и в спеке. */
+@media (prefers-reduced-motion: reduce) {
+  .ramp__marks[data-active="true"] {
+    animation: none;
+  }
 }
 
 /* Полоса сайдбара — единственная с содержимым: слева системный светофор,
