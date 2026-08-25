@@ -20,6 +20,13 @@
   /* Верхняя полоса окна отдана под перетаскивание за скрытый заголовок
      (MacTitleBarHiddenInset). Одинаковая во всех трёх колонках. */
   --drag-strip: 42px;
+  /* На какой высоте внутри полосы стоит рампа индикатора фокуса.
+     Одно число, потому что подгонять его приходится по глазам: системный
+     светофор рисует macOS, из CSS его не измерить, а у titlebar в режиме
+     hiddenInset кнопки сидят заметно ниже верхней кромки. Значение снято
+     измерением скриншота — центр кнопок примерно в 30px от верха окна,
+     рампа высотой 11px встаёт по их линии. */
+  --ramp-top: 24px;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
@@ -119,7 +126,7 @@ body {
    в узком сайдбаре она не должна выезжать к соседям. */
 .ramp {
   position: absolute;
-  top: 0;
+  top: var(--ramp-top);
   right: 0;
   left: 0;
   display: flex;
@@ -128,6 +135,18 @@ body {
   height: 11px;
   overflow: hidden;
   pointer-events: none;
+}
+
+/* Там, где полоса отдана системному светофору, рампа начинается за ним.
+   На верхней кромке они не пересекались, а на линии кнопок — пересеклись бы:
+   центрирование по всей ширине колонки завело бы рампу прямо под кружки. */
+.drag-strip--sidebar .ramp {
+  left: 78px;
+  right: 10px;
+}
+
+.drag-strip--tools[data-lights="true"] .ramp {
+  left: 78px;
 }
 
 .ramp__marks {
